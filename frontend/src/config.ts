@@ -35,7 +35,8 @@ function getApiUrl(): string {
   }
   
   // Otherwise, assume backend is on same host as frontend
-  return `${protocol}//${host}`
+  // with /api prefix (Nginx routes /api/* to backend)
+  return `${protocol}//${host}/api`
 }
 
 export const API_URL = getApiUrl()

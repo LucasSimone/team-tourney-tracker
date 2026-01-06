@@ -131,7 +131,10 @@ server {
     # Backend API
     # =========================================================================
     
-    location /api {
+    location /api/ {
+        # Strip /api prefix before proxying to backend
+        # /api/auth/login → /auth/login
+        rewrite ^/api/(.*)$ /$1 break;
         proxy_pass http://127.0.0.1:8080;
         
         # Headers
