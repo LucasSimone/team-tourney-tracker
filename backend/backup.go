@@ -84,8 +84,17 @@ Tournament Tracker System
 
 	// Send email via Gmail SMTP
 	dialer := mail.NewDialer(smtpHost, smtpPort, senderEmail, appPassword)
-	// In production, proper TLS will be used. InsecureSkipVerify is disabled for security.
-	dialer.TLSConfig = &tls.Config{InsecureSkipVerify: false}
+
+	// Port 465 uses implicit TLS (SMTPS), port 587 uses explicit TLS (STARTTLS)
+	if smtpPort == 465 {
+		dialer.SSL = true
+	}
+
+	// Configure TLS
+	dialer.TLSConfig = &tls.Config{
+		ServerName:         smtpHost,
+		InsecureSkipVerify: false,
+	}
 
 	if err := dialer.DialAndSend(m); err != nil {
 		return fmt.Errorf("failed to send email: %w", err)

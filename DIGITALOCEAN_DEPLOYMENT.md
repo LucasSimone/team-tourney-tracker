@@ -139,6 +139,9 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Rewrite requests: /api/* → /* (backend expects paths without /api prefix)
+        rewrite ^/api(/.*)$ $1 break;
     }
 }
 ```
@@ -328,6 +331,9 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 60s;
         proxy_connect_timeout 60s;
+        
+        # Rewrite requests: /api/* → /* (backend expects paths without /api prefix)
+        rewrite ^/api(/.*)$ $1 break;
     }
 
     # Gzip compression
