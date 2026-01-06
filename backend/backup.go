@@ -1,17 +1,13 @@
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
-
-	mail "github.com/go-mail/mail/v2"
 )
 
 // createLocalBackup creates a backup file in the backups directory
@@ -91,115 +87,21 @@ func cleanupOldBackups(backupDir string) {
 	}
 }
 
-// emailDatabaseBackup sends the current database as an email attachment
-func emailDatabaseBackup(recipientEmail string) error {
-	// Get SMTP configuration from environment
-	smtpHost := os.Getenv("SMTP_HOST")
-	senderEmail := os.Getenv("SENDER_EMAIL")
-	appPassword := os.Getenv("SENDER_APP_PASSWORD")
-
-	// If email not configured, just do local backup
-	if smtpHost == "" || senderEmail == "" || appPassword == "" {
-		log.Println("Email not configured, creating local backup only")
-		_, err := createLocalBackup()
-		return err
-	}
-
-	// Extract host and port from SMTP_HOST (format: "smtp.gmail.com" or "smtp.gmail.com:465")
-	smtpPort := 587 // Default port for TLS
-	if strings.Contains(smtpHost, ":") {
-		parts := strings.Split(smtpHost, ":")
-		smtpHost = parts[0]
-		if p, err := strconv.Atoi(parts[1]); err == nil {
-			smtpPort = p
-		}
-	}
-
-	// Allow override via SMTP_PORT environment variable
-	if envPort := os.Getenv("SMTP_PORT"); envPort != "" {
-		if p, err := strconv.Atoi(envPort); err == nil {
-			smtpPort = p
-		}
-	}
-
-	log.Printf("Connecting to SMTP server: %s:%d", smtpHost, smtpPort)
-
-	// Read the database file
-	dbPath := "/db/sports.db"
-	dbData, err := os.ReadFile(dbPath)
-	if err != nil {
-		return fmt.Errorf("failed to read database file: %w", err)
-	}
-
-	// Create email message
-	m := mail.NewMessage()
-	m.SetHeader("From", senderEmail)
-	m.SetHeader("To", recipientEmail)
-	timestamp := time.Now().Format("2006-01-02_15-04-05")
-	m.SetHeader("Subject", fmt.Sprintf("Tournament Tracker Database Backup - %s", timestamp))
-
-	// Email body
-	body := fmt.Sprintf(`
-Database Backup Report
-======================
-
-Backup Time: %s
-Database Size: %d bytes
-
-This is an automated weekly backup of the Tournament Tracker database.
-
-To restore, simply replace the sports.db file with this backup.
-
-Best regards,
-Tournament Tracker System
-`, time.Now().Format("2006-01-02 15:04:05 MST"), len(dbData))
-
-	m.SetBody("text/plain", body)
-
-	// Attach database file
-	filename := fmt.Sprintf("sports_backup_%s.db", timestamp)
-	m.Attach(dbPath, mail.SetHeader(map[string][]string{
-		"Content-Disposition": {fmt.Sprintf("attachment; filename=%q", filename)},
-	}))
-
-	// Send email via Gmail SMTP
-	dialer := mail.NewDialer(smtpHost, smtpPort, senderEmail, appPassword)
-
-	// Port 465 uses implicit TLS (SMTPS), port 587 uses explicit TLS (STARTTLS)
-	if smtpPort == 465 {
-		dialer.SSL = true
-	}
-
-	// Configure TLS
-	dialer.TLSConfig = &tls.Config{
-		ServerName:         smtpHost,
-		InsecureSkipVerify: false,
-	}
-
-	if err := dialer.DialAndSend(m); err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
-	}
-
-	log.Printf("Database backup email sent successfully to %s", recipientEmail)
-	return nil
-}
-
 // setupWeeklyBackup starts a goroutine that backs up the database weekly
-func setupWeeklyBackup(recipientEmail string) {
+func setupWeeklyBackup() {
 	go func() {
-		// Calculate time until next Monday at 2 AM
-		ticker := time.NewTicker(7 * 24 * time.Hour)
-		defer ticker.Stop()
-
 		// Run once immediately at startup
 		log.Println("Starting weekly database backup scheduler...")
-		if err := emailDatabaseBackup(recipientEmail); err != nil {
+		if _, err := createLocalBackup(); err != nil {
 			log.Printf("Initial backup failed: %v", err)
 		}
 
 		// Run weekly
+		ticker := time.NewTicker(7 * 24 * time.Hour)
+		defer ticker.Stop()
+
 		for range ticker.C {
-			if err := emailDatabaseBackup(recipientEmail); err != nil {
+			if _, err := createLocalBackup(); err != nil {
 				log.Printf("Weekly backup failed: %v", err)
 			}
 		}
@@ -231,14 +133,6 @@ func backupHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(fmt.Sprintf("backup failed: %v", err)))
 			log.Printf("Backup error: %v", err)
 			return
-		}
-
-		// Try to send email if configured
-		backupEmail := os.Getenv("BACKUP_EMAIL")
-		if backupEmail != "" {
-			if err := emailDatabaseBackup(backupEmail); err != nil {
-				log.Printf("Email backup failed (local backup still created): %v", err)
-			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")

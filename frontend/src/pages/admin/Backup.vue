@@ -69,7 +69,6 @@
         <li>Frequency: Every 7 days</li>
         <li>First backup: Runs immediately on backend startup</li>
         <li>Retention: Only the 3 most recent backups are kept (older ones auto-deleted)</li>
-        <li>Email backup (optional): Set SENDER_EMAIL, SENDER_APP_PASSWORD, and BACKUP_EMAIL environment variables to also email backups</li>
       </ul>
     </div>
   </div>

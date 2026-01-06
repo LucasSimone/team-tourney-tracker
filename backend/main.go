@@ -123,12 +123,7 @@ func main() {
 	http.HandleFunc("/admin/backup/download", backupDownloadHandler)
 
 	// Setup weekly database backups
-	backupEmail := os.Getenv("BACKUP_EMAIL")
-	if backupEmail != "" {
-		setupWeeklyBackup(backupEmail)
-	} else {
-		log.Println("Weekly email backups disabled (BACKUP_EMAIL not set), using local backup system")
-	}
+	setupWeeklyBackup()
 
 	log.Println("Backend running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

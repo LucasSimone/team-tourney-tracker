@@ -678,41 +678,16 @@ certbot certificates
 certbot renew --force-renewal
 ```
 
-### Email Backup Timeout Errors (Optional Feature)
+### Email Backup Timeout Errors (Resolved)
 
-Email backups are **optional**. The application creates local backups automatically and works fine without email.
+Email backups have been disabled. The application now creates backups to local disk only.
 
-**If you configured SMTP and see `i/o timeout` errors:**
+All backup functions work without email:
+- Automatic weekly backups ✅
+- Manual backup creation from admin panel ✅
+- Backup download from admin panel ✅
 
-**Option 1: Use Local Backups Only (Recommended)**
-- Local backups work out of the box
-- Access from Admin → Backups panel
-- No SMTP configuration needed
-- Simply don't set `BACKUP_EMAIL` in your `.env`
-
-**Option 2: Request SMTP Unblock from DigitalOcean**
-```bash
-# Contact DigitalOcean support:
-# 1. Log into control panel
-# 2. Create support ticket requesting SMTP port unblock
-# 3. Explain for database backups
-# 4. Wait for approval (1-2 days)
-
-# Once approved, try:
-nano /apps/team-tourney-tracker/.env
-# Set: SMTP_PORT=465 (better success rate than 587)
-
-docker-compose -f docker-compose.prod.yml restart backend
-docker-compose -f docker-compose.prod.yml logs backend
-```
-
-**Option 3: Use SendGrid or Similar Service**
-- Free tier available (SendGrid: 100 emails/day)
-- More reliable with cloud providers
-- Requires code modification to `backend/backup.go`
-- Contact us for implementation help
-
-**Why this happens:** Cloud providers block outbound SMTP ports (25, 465, 587) to prevent spam. This is expected behavior, not a misconfiguration.
+No SMTP configuration needed!
 
 ### Backup Storage Running Full
 
@@ -722,13 +697,10 @@ If `/var/lib/docker/volumes/team-tourney-tracker_db_volume/` is consuming too mu
 # Check storage usage
 du -sh /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/
 
-# View all backups
+# View all backups (should be max 3 files)
 ls -lh /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/
 
-# Manual cleanup (keeps last 10 backups)
-ls -t /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/ | tail -n +11 | xargs -d '\n' rm
-
-# Export backups to cloud storage (recommended before deleting)
+# If still too large, export to cloud storage and restart
 tar -czf ~/tournament_backups_$(date +%Y-%m-%d).tar.gz \
   /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/
 ```
