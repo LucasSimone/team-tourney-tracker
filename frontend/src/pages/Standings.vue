@@ -159,7 +159,7 @@ const teamStats = computed(() => {
 
   // Calculate win percentage and sort by win percentage (descending)
   return Object.values(stats)
-    .filter(stat => stat.gamesPlayed > 0) // Only include teams that have played
+    .filter(stat => stat.gamesPlayed >= 10) // Only include teams with 10+ games
     .map(stat => ({
       ...stat,
       winPercentage: stat.wins + stat.losses > 0 
@@ -230,17 +230,19 @@ const fetchPlayerStats = async () => {
     const res = await fetch(`${api}/players/stats?season_id=${seasonParam}`)
     if (res.ok) {
       const data = await res.json()
-      // Map the API response to our interface
-      playerStats.value = (data || []).map((stat: any) => ({
-        id: stat.id,
-        name: stat.name,
-        games_played: stat.games_played,
-        wins: stat.wins,
-        losses: stat.losses,
-        win_percentage: stat.win_percentage,
-        gamesPlayed: stat.games_played,
-        winPercentage: stat.win_percentage
-      }))
+      // Map the API response to our interface and filter by minimum 10 games
+      playerStats.value = (data || [])
+        .filter((stat: any) => stat.games_played >= 10) // Only include players with 10+ games
+        .map((stat: any) => ({
+          id: stat.id,
+          name: stat.name,
+          games_played: stat.games_played,
+          wins: stat.wins,
+          losses: stat.losses,
+          win_percentage: stat.win_percentage,
+          gamesPlayed: stat.games_played,
+          winPercentage: stat.win_percentage
+        }))
     }
   } catch (e) {
     console.error('Failed to fetch player stats', e)
