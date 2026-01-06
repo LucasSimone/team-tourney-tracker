@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tourney-tracker-backend
+    ports:
+      - "127.0.0.1:8080:8080"  # Only accessible from localhost (via Nginx reverse proxy)
+    volumes:
+      - db_volume:/db  # Named volume for persistence
+    restart: unless-stopped
+    environment:
+      # Security
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+      
+      # Email Configuration
+      - SMTP_HOST=${SMTP_HOST}
+      - SENDER_EMAIL=${SENDER_EMAIL}
+      - SENDER_APP_PASSWORD=${SENDER_APP_PASSWORD}
+      - BACKUP_EMAIL=${BACKUP_EMAIL}
+    networks:
+      - tourney-network
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/teams"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL}
+    container_name: tourney-tracker-frontend
+    ports:
+      - "127.0.0.1:5173:5173"  # Only accessible from localhost (via Nginx reverse proxy)
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=${VITE_API_URL}
+    networks:
+      - tourney-network
+    depends_on:
+      - backend
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.125'
+          memory: 64M
+
+volumes:
+  db_volume:
+    driver: local
+
+networks:
+  tourney-network:
+    driver: bridge

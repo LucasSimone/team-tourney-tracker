@@ -1,0 +1,18 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./db:/db
+    restart: unless-stopped
+    environment:
+      - SMTP_HOST=${SMTP_HOST}
+      - SENDER_EMAIL=${SENDER_EMAIL}
+      - SENDER_APP_PASSWORD=${SENDER_APP_PASSWORD}
+      - BACKUP_EMAIL=${BACKUP_EMAIL}
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    restart: unless-stopped

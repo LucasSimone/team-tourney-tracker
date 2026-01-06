@@ -1,0 +1,26 @@
+# Build artifacts
+*.db
+*.db-shm
+*.db-wal
+.git/
+.gitignore
+.env.example
+README.md
+*.md
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# For backend Dockerfile
+.env
+.env.local
+
+# For frontend Dockerfile
+node_modules/
+.vite/
+npm-debug.log*
+yarn-error.log*
