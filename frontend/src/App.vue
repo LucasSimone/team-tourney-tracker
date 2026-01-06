@@ -190,7 +190,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .hamburger {
-  display: none;
+  display: flex;
   flex-direction: column;
   gap: 5px;
   background: none;
@@ -225,37 +225,63 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .nav-menu {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 0;
+  right: 0;
   display: flex;
-  gap: var(--spacing-lg);
+  flex-direction: column;
+  gap: 0;
   align-items: flex-start;
-  flex-wrap: wrap;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-  padding: var(--spacing-lg);
   background-color: var(--clr-surface-a10);
-  max-height: 60vh;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-in-out;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  z-index: 101;
+}
+
+.nav-menu.active {
+  max-height: calc(100vh - 80px);
+  padding: var(--spacing-lg);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .nav-public,
 .nav-authenticated {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.nav-public a,
+.nav-authenticated a,
+.admin-btn {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  text-align: left;
+  margin: 0;
 }
 
 .nav-menu a {
   color: var(--text-primary);
   text-decoration: none;
-  padding: var(--spacing-lg) var(--spacing-xl);
+  padding: var(--spacing-md) var(--spacing-lg);
   border-radius: var(--radius);
   transition: background-color 0.2s, border 0.2s;
-  white-space: nowrap;
+  white-space: normal;
   font-size: 16px;
   font-weight: 500;
   border: 2px solid var(--text-primary);
-  margin-bottom: var(--spacing-md);
+  margin: 0;
+  width: 100%;
 }
 
 .nav-menu a.btn-login,
@@ -283,20 +309,24 @@ h1, h2, h3, h4, h5, h6 {
 /* Admin Dropdown */
 .admin-dropdown {
   position: relative;
+  width: 100%;
+  margin-bottom: var(--spacing-lg);
 }
 
 .admin-btn {
   color: var(--text-primary);
-  padding: var(--spacing-lg) var(--spacing-xl);
+  padding: var(--spacing-md) var(--spacing-lg);
   border-radius: var(--radius);
   transition: background-color 0.2s;
-  white-space: nowrap;
+  white-space: normal;
   font-size: 16px;
   font-weight: 500;
   border: 2px solid var(--text-primary);
   background-color: transparent;
   cursor: pointer;
-  margin-bottom: var(--spacing-md);
+  margin: 0;
+  width: 100%;
+  text-align: left;
 }
 
 .admin-btn:hover {
@@ -308,17 +338,20 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
+  position: static;
+  top: auto;
+  left: auto;
   background-color: transparent;
   border: none;
   border-radius: var(--radius);
-  margin-top: var(--spacing-sm);
-  min-width: 150px;
+  margin-top: 0;
+  margin-left: 0;
+  min-width: auto;
   display: none;
   flex-direction: column;
   z-index: 1000;
+  gap: var(--spacing-md);
+  width: 100%;
 }
 
 .admin-dropdown.open .dropdown-menu {
@@ -328,15 +361,15 @@ h1, h2, h3, h4, h5, h6 {
 .dropdown-menu a {
   color: var(--text-primary);
   text-decoration: none;
-  padding: var(--spacing-lg) var(--spacing-xl);
+  padding: var(--spacing-md) var(--spacing-lg);
   border: 2px solid var(--text-primary);
   transition: background-color 0.2s, border 0.2s;
-  white-space: nowrap;
+  white-space: normal;
   font-size: 16px;
   font-weight: 500;
   border-radius: var(--radius);
   margin: 0;
-  margin-bottom: var(--spacing-md);
+  width: 100%;
 }
 
 .dropdown-menu a:first-child {
@@ -360,21 +393,19 @@ h1, h2, h3, h4, h5, h6 {
 
 .nav-footer {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-lg);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-md);
   width: 100%;
-  margin-top: var(--spacing-lg);
+  margin-top: auto;
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--clr-surface-a20);
 }
 
 .user-info {
   font-size: 12px;
   color: var(--text-secondary);
-  flex: 1;
-}
-
-.btn-logout,
-.btn-login {
-  margin-left: auto;
+  text-align: center;
 }
 
 .btn-logout,
@@ -387,9 +418,12 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 14px;
   transition: background-color 0.2s;
   text-decoration: none;
-  display: inline-block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  max-width: 50%;
+  width: 100%;
+  margin-left: 0;
 }
 
 .btn-login,
@@ -409,54 +443,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @media (max-width: 768px) {
-  .hamburger {
-    display: flex;
-  }
-
   .navbar-header {
     border-bottom: 1px solid var(--clr-surface-a20);
-    width: 100%;
-  }
-
-  .nav-menu {
-    position: absolute;
-    top: calc(100% + 1px);
-    left: 0;
-    right: 0;
-    background-color: var(--clr-surface-a10);
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease-in-out;
-    padding: 0;
-    gap: 0;
-    margin: 0;
-    width: 100%;
-  }
-
-  .nav-menu.active {
-    max-height: 80vh;
-    padding: var(--spacing-lg);
-    overflow-y: auto;
-  }
-
-  .nav-public,
-  .nav-authenticated {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .nav-menu a,
-  .admin-btn {
-    width: 100%;
-    padding: var(--spacing-md);
-    text-align: left;
-  }
-
-  .admin-dropdown {
-    width: 100%;
-  }
-
-  .admin-btn {
     width: 100%;
   }
 
@@ -468,24 +456,6 @@ h1, h2, h3, h4, h5, h6 {
 
   .admin-dropdown.open .dropdown-menu {
     display: flex;
-  }
-
-  .nav-footer {
-    flex-direction: row;
-    align-items: center;
-    margin-left: 0;
-    gap: var(--spacing-md);
-    width: 100%;
-  }
-
-  .theme-toggle,
-  .btn-logout,
-  .btn-login {
-    padding: var(--spacing-md) var(--spacing-lg);
-  }
-
-  .main-content {
-    padding: var(--spacing-lg);
   }
 }
 </style>

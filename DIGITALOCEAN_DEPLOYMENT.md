@@ -133,16 +133,16 @@ Wait for DNS to propagate (5-30 minutes):
 nslookup tourney.yourdomain.com
 ```
 
-## Step 5: Configure Nginx as Reverse Proxy
+## Step 5: Configure Nginx as Reverse Proxy (HTTP Only - Initial)
 
-Create `/etc/nginx/sites-available/tourney-tracker`:
+Create `/etc/nginx/sites-available/tourney-tracker` with HTTP only (we'll add HTTPS after getting the certificate):
 
 ```nginx
 server {
     listen 80;
     server_name tourney.yourdomain.com;
 
-    # Temporary - will be replaced by HTTPS
+    # Frontend
     location / {
         proxy_pass http://localhost:5173;
         proxy_set_header Host $host;
@@ -151,6 +151,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # Backend API
     location /api {
         proxy_pass http://localhost:8080;
         proxy_set_header Host $host;
@@ -173,8 +174,10 @@ systemctl restart nginx
 
 ## Step 6: Set Up HTTPS with Let's Encrypt
 
+**IMPORTANT: Do this AFTER Step 5 and BEFORE deploying the app in Step 7**
+
 ```bash
-# Get SSL certificate
+# Get SSL certificate (this updates Nginx config automatically)
 certbot --nginx -d tourney.yourdomain.com
 
 # Follow prompts:
@@ -186,7 +189,7 @@ certbot --nginx -d tourney.yourdomain.com
 certbot certificates
 ```
 
-Certbot automatically updates your Nginx config with HTTPS!
+This will automatically update your Nginx config to use HTTPS!
 
 ## Step 7: Deploy Team Tourney Tracker
 
@@ -217,25 +220,6 @@ CORS_ORIGIN=https://tourney.yourdomain.com
 
 # Frontend
 VITE_API_URL=https://tourney.yourdomain.com/api
-
-# Email Backups (OPTIONAL - can skip for now)
-# Note: If you get timeout errors, Gmail's port 587 may be blocked
-# Use port 465 instead: SMTP_HOST=smtp.gmail.com:465
-SMTP_HOST=smtp.gmail.com
-SENDER_EMAIL=your-email@gmail.com
-SENDER_APP_PASSWORD=xxxx xxxx xxxx xxxx
-BACKUP_EMAIL=backup@yourdomain.com
-```
-
-**If you get email timeout errors:**
-```bash
-# Try using port 465 (SMTPS) instead of 587
-SMTP_HOST=smtp.gmail.com:465
-# or
-SMTP_PORT=465
-
-# Or simply disable email backups for now (comment out the SMTP_* lines)
-# and enable them later
 ```
 
 ### 7.3 Update Docker Compose for Production
@@ -248,31 +232,32 @@ version: '3.8'
 services:
   backend:
     build: ./backend
-    container_name: tourney-backend
+    container_name: tourney-tracker-backend
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
-      - ./db:/db
+      - db_volume:/db
     restart: unless-stopped
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - CORS_ORIGIN=${CORS_ORIGIN}
-      - SMTP_HOST=${SMTP_HOST}
-      - SENDER_EMAIL=${SENDER_EMAIL}
-      - SENDER_APP_PASSWORD=${SENDER_APP_PASSWORD}
-      - BACKUP_EMAIL=${BACKUP_EMAIL}
 
   frontend:
     build:
       context: ./frontend
+      dockerfile: Dockerfile
       args:
         - VITE_API_URL=${VITE_API_URL}
-    container_name: tourney-frontend
+    container_name: tourney-tracker-frontend
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     restart: unless-stopped
     environment:
       - VITE_API_URL=${VITE_API_URL}
+
+volumes:
+  db_volume:
+    driver: local
 ```
 
 ### 7.4 Start the Application
@@ -290,17 +275,17 @@ docker-compose logs -f
 docker-compose ps
 ```
 
-### 7.5 Update Nginx Config for Production
+### 7.5 Update Nginx Config for Production (After Certificate is Ready)
 
-Replace `/etc/nginx/sites-available/tourney-tracker`:
+Now that you have the SSL certificate, update `/etc/nginx/sites-available/tourney-tracker`:
 
 ```nginx
 upstream tourney_frontend {
-    server localhost:5173;
+    server 127.0.0.1:5173;
 }
 
 upstream tourney_backend {
-    server localhost:8080;
+    server 127.0.0.1:8080;
 }
 
 server {
@@ -368,7 +353,7 @@ server {
 
 Reload Nginx:
 ```bash
-nginx -t
+nginx -t  # Test config
 systemctl reload nginx
 ```
 
@@ -389,12 +374,29 @@ systemctl reload nginx
     └── .env
 ```
 
-### 8.2 Nginx Config for Multiple Apps
+### 8.2 Get SSL Certificates for Multiple Domains
+
+```bash
+# Get all certificates at once
+certbot --nginx -d tourney.yourdomain.com -d app1.yourdomain.com -d app2.yourdomain.com
+
+# Or get individual certificates
+certbot --nginx -d app1.yourdomain.com
+certbot --nginx -d app2.yourdomain.com
+```
+
+### 8.3 Nginx Config for Multiple Apps
 
 Create separate config files for each app:
 
 ```bash
 # /etc/nginx/sites-available/app1
+server {
+    listen 80;
+    server_name app1.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+
 server {
     listen 443 ssl http2;
     server_name app1.yourdomain.com;
@@ -402,12 +404,18 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/app1.yourdomain.com/privkey.pem;
     
     location / {
-        proxy_pass http://localhost:3001;
+        proxy_pass http://127.0.0.1:3001;
         # ... proxy settings ...
     }
 }
 
 # /etc/nginx/sites-available/app2
+server {
+    listen 80;
+    server_name app2.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+
 server {
     listen 443 ssl http2;
     server_name app2.yourdomain.com;
@@ -415,7 +423,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/app2.yourdomain.com/privkey.pem;
     
     location / {
-        proxy_pass http://localhost:3002;
+        proxy_pass http://127.0.0.1:3002;
         # ... proxy settings ...
     }
 }
@@ -425,18 +433,8 @@ Enable all sites:
 ```bash
 ln -s /etc/nginx/sites-available/app1 /etc/nginx/sites-enabled/
 ln -s /etc/nginx/sites-available/app2 /etc/nginx/sites-enabled/
+nginx -t
 systemctl reload nginx
-```
-
-### 8.3 Get SSL for Multiple Domains
-
-```bash
-# Single certificate for multiple domains
-certbot --nginx -d tourney.yourdomain.com -d app1.yourdomain.com -d app2.yourdomain.com
-
-# Or get individual certificates
-certbot --nginx -d app1.yourdomain.com
-certbot --nginx -d app2.yourdomain.com
 ```
 
 ## Step 9: Database Backups & Persistence
