@@ -15,13 +15,6 @@ services:
       # Security
       - JWT_SECRET=${JWT_SECRET}
       - CORS_ORIGIN=${CORS_ORIGIN}
-      
-      # Email Configuration
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SENDER_EMAIL=${SENDER_EMAIL}
-      - SENDER_APP_PASSWORD=${SENDER_APP_PASSWORD}
-      - BACKUP_EMAIL=${BACKUP_EMAIL}
     networks:
       - tourney-network
     # Resource limits
