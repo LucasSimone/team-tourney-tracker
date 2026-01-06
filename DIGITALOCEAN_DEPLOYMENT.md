@@ -197,11 +197,24 @@ CORS_ORIGIN=https://tourney.yourdomain.com
 # Frontend
 VITE_API_URL=https://tourney.yourdomain.com/api
 
-# Email Backups
+# Email Backups (OPTIONAL - can skip for now)
+# Note: If you get timeout errors, Gmail's port 587 may be blocked
+# Use port 465 instead: SMTP_HOST=smtp.gmail.com:465
 SMTP_HOST=smtp.gmail.com
 SENDER_EMAIL=your-email@gmail.com
 SENDER_APP_PASSWORD=xxxx xxxx xxxx xxxx
 BACKUP_EMAIL=backup@yourdomain.com
+```
+
+**If you get email timeout errors:**
+```bash
+# Try using port 465 (SMTPS) instead of 587
+SMTP_HOST=smtp.gmail.com:465
+# or
+SMTP_PORT=465
+
+# Or simply disable email backups for now (comment out the SMTP_* lines)
+# and enable them later
 ```
 
 ### 7.3 Update Docker Compose for Production
@@ -531,6 +544,45 @@ certbot certificates
 # Renew immediately if needed
 certbot renew --force-renewal
 ```
+
+### Email Backup Timeout Errors
+
+If you see `i/o timeout` errors on port 587:
+
+```bash
+# Option 1: Try port 465 (SMTPS)
+nano /apps/team-tourney-tracker/.env
+
+# Change:
+SMTP_HOST=smtp.gmail.com:465
+# OR
+SMTP_PORT=465
+
+# Restart:
+docker-compose -f docker-compose.prod.yml restart backend
+
+# Check logs:
+docker-compose -f docker-compose.prod.yml logs backend
+```
+
+If port 465 doesn't work either:
+
+```bash
+# Option 2: Disable email backups for now
+nano /apps/team-tourney-tracker/.env
+
+# Comment out all SMTP_* and BACKUP_EMAIL lines:
+# SMTP_HOST=...
+# SENDER_EMAIL=...
+# etc.
+
+docker-compose -f docker-compose.prod.yml restart backend
+```
+
+**Why this happens:** Some cloud providers (DigitalOcean, AWS, etc.) block outbound SMTP ports (25, 587) by default to prevent spam. Port 465 (SMTPS) often works better. You can also:
+- Use a different email service (SendGrid, Mailgun, etc.)
+- Request DigitalOcean to unblock SMTP ports (they may require email verification)
+- Use manual backups via the admin panel instead
 
 ## Cost Estimate
 

@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	mail "github.com/go-mail/mail/v2"
@@ -15,7 +17,6 @@ import (
 func emailDatabaseBackup(recipientEmail string) error {
 	// Get SMTP configuration from environment
 	smtpHost := os.Getenv("SMTP_HOST")
-	smtpPort := 587 // Gmail uses port 587 for TLS
 	senderEmail := os.Getenv("SENDER_EMAIL")
 	appPassword := os.Getenv("SENDER_APP_PASSWORD")
 
@@ -23,6 +24,25 @@ func emailDatabaseBackup(recipientEmail string) error {
 	if smtpHost == "" || senderEmail == "" || appPassword == "" {
 		return fmt.Errorf("missing required environment variables: SMTP_HOST, SENDER_EMAIL, SENDER_APP_PASSWORD")
 	}
+
+	// Extract host and port from SMTP_HOST (format: "smtp.gmail.com" or "smtp.gmail.com:465")
+	smtpPort := 587 // Default port for TLS
+	if strings.Contains(smtpHost, ":") {
+		parts := strings.Split(smtpHost, ":")
+		smtpHost = parts[0]
+		if p, err := strconv.Atoi(parts[1]); err == nil {
+			smtpPort = p
+		}
+	}
+
+	// Allow override via SMTP_PORT environment variable
+	if envPort := os.Getenv("SMTP_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil {
+			smtpPort = p
+		}
+	}
+
+	log.Printf("Connecting to SMTP server: %s:%d", smtpHost, smtpPort)
 
 	// Read the database file
 	dbPath := "/db/sports.db"
