@@ -77,6 +77,7 @@
 
 <script setup lang="ts">
 import { API_URL } from '@/config'
+import { useAuth } from '@/composables/useAuth'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -95,6 +96,9 @@ interface Match {
 }
 
 const router = useRouter()
+
+// Auth
+const { token } = useAuth()
 
 // Teams
 const teams = ref<Team[]>([])
@@ -272,7 +276,8 @@ const submitMatch = async () => {
     const response = await fetch(`${API_URL}/matches`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(token.value && { 'Authorization': `Bearer ${token.value}` })
       },
       body: JSON.stringify(match)
     })
