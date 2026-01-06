@@ -184,7 +184,7 @@ h1 {
 .view-standings-btn {
   display: inline-block;
   padding: var(--spacing-md) var(--spacing-lg);
-  background-color: var(--clr-primary-a50);
+  background-color: var(--clr-primary-a0);
   color: white;
   border-radius: var(--radius);
   text-decoration: none;
@@ -194,7 +194,7 @@ h1 {
 }
 
 .view-standings-btn:hover {
-  background-color: var(--clr-primary-a40);
+  background-color: #7d2aed;
 }
 
 @media (max-width: 768px) {

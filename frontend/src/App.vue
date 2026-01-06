@@ -176,7 +176,7 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: var(--spacing-lg);
+  padding: 0px var(--spacing-lg);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -439,7 +439,7 @@ h1, h2, h3, h4, h5, h6 {
 .main-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 var(--spacing-lg);
+  padding: var(--spacing-lg);
 }
 
 @media (max-width: 768px) {
