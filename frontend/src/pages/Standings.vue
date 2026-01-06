@@ -13,8 +13,10 @@
       <h2>Team Rankings</h2>
       <div class="stats-cards">
         <div v-for="(stat, index) in teamStats" :key="stat.id" class="stat-card">
-          <div class="card-rank">{{ index + 1 }}</div>
-          <router-link :to="`/teams/${stat.id}`" class="card-name">{{ stat.name }}</router-link>
+          <div class="card-header">
+            <div class="card-rank">{{ index + 1 }}</div>
+            <router-link :to="`/teams/${stat.id}`" class="card-name">{{ stat.name }}</router-link>
+          </div>
           <div class="card-stats">
             <div class="stat-item">
               <span class="stat-label">GP</span>
@@ -41,8 +43,10 @@
       <h2>Player Rankings</h2>
       <div class="stats-cards">
         <div v-for="(stat, index) in playerStats" :key="stat.id" class="stat-card">
-          <div class="card-rank">{{ index + 1 }}</div>
-          <router-link :to="`/players/${stat.id}`" class="card-name">{{ stat.name }}</router-link>
+          <div class="card-header">
+            <div class="card-rank">{{ index + 1 }}</div>
+            <router-link :to="`/players/${stat.id}`" class="card-name">{{ stat.name }}</router-link>
+          </div>
           <div class="card-stats">
             <div class="stat-item">
               <span class="stat-label">GP</span>
@@ -415,6 +419,13 @@ h2 {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  justify-content: space-between;
+}
+
 .card-rank {
   font-size: 28px;
   font-weight: 700;
@@ -426,11 +437,12 @@ h2 {
 .card-name {
   font-size: 18px;
   font-weight: 600;
-  min-width: 150px;
-  flex: 1;
   color: white;
   text-decoration: none;
   transition: color 0.2s ease;
+  white-space: normal;
+  word-wrap: break-word;
+  text-align: right;
 }
 
 .card-name:hover {
@@ -496,25 +508,46 @@ h2 {
     gap: var(--spacing-md);
   }
 
-  .card-name {
-    min-width: unset;
+  .card-header {
     width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .card-rank {
+    min-width: unset;
+  }
+
+  .card-name {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
   }
 
   .card-stats {
     margin-left: 0;
     width: 100%;
     gap: var(--spacing-md);
+    flex-wrap: wrap;
   }
 
   .stat-item {
     flex: 1;
+    min-width: calc(33.333% - var(--spacing-md));
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
     background: rgba(255, 255, 255, 0.05);
     padding: var(--spacing-md);
     border-radius: 4px;
+  }
+
+  .stat-item:nth-child(4) {
+    flex-basis: 100%;
+    min-width: unset;
   }
 
   .stat-label {

@@ -350,6 +350,7 @@ const fetchMatches = async () => {
   flex-direction: column;
   gap: var(--spacing-lg);
   align-items: flex-start;
+  margin-bottom: var(--spacing-lg);
 }
 
 .back-button {
