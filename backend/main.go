@@ -120,13 +120,14 @@ func main() {
 	http.HandleFunc("/auth/users/", usersHandler)
 	http.HandleFunc("/auth/users", usersHandler)
 	http.HandleFunc("/admin/backup", backupHandler)
+	http.HandleFunc("/admin/backup/download", backupDownloadHandler)
 
 	// Setup weekly database backups
 	backupEmail := os.Getenv("BACKUP_EMAIL")
 	if backupEmail != "" {
 		setupWeeklyBackup(backupEmail)
 	} else {
-		log.Println("Warning: BACKUP_EMAIL not set, database backups will not be sent")
+		log.Println("Weekly email backups disabled (BACKUP_EMAIL not set), using local backup system")
 	}
 
 	log.Println("Backend running on :8080")

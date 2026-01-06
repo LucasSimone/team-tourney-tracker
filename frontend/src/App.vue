@@ -234,6 +234,8 @@ h1, h2, h3, h4, h5, h6 {
   margin: 0 auto;
   padding: var(--spacing-lg);
   background-color: var(--clr-surface-a10);
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 .nav-public,
@@ -417,7 +419,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .nav-menu {
-    flex-direction: column;
     position: absolute;
     top: calc(100% + 1px);
     left: 0;
@@ -433,8 +434,9 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .nav-menu.active {
-    max-height: 1000px;
+    max-height: 80vh;
     padding: var(--spacing-lg);
+    overflow-y: auto;
   }
 
   .nav-public,

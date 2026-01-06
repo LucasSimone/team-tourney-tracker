@@ -10,7 +10,25 @@ DigitalOcean Droplet (Ubuntu 22.04 LTS)
 │   ├── app1.yourdomain.com → localhost:3001
 │   ├── app2.yourdomain.com → localhost:3002
 │   └── tourney.yourdomain.com → localhost:3003
-├── Docker / Docker Compose (Container Orchestration)
+├── Docker / Dock#### Local Backups (Always Enabled, No Configuration)
+- Automatic weekly backups crea#### Export Backups for Long-Term Storage
+
+Since only the 3 most recent backups are kept locally, periodically archive them to external storage:
+
+```bash
+# Create a tar archive of all current backups
+tar -czf ~/backups_archive_$(date +%Y-%m-%d).tar.gz \
+  /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/
+
+# Download to your computer
+scp root@your-droplet-ip:~/backups_archive_*.tar.gz ./
+
+# Or upload to cloud storage (AWS S3, Google Drive, Backblaze, etc.)
+```und
+- Manual backups triggered from Admin → Backups panel
+- Download backups directly from the web UI
+- **Only the 3 most recent backups are kept** (older backups auto-deleted)
+- Stored at: `/var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/`pose (Container Orchestration)
 │   ├── team-tourney-tracker
 │   ├── other-app-1
 │   └── other-app-2
@@ -423,32 +441,139 @@ certbot --nginx -d app2.yourdomain.com
 
 ## Step 9: Database Backups & Persistence
 
-### 9.1 Backup Strategy
+### 9.1 Understanding Data Storage
 
-Create `/apps/team-tourney-tracker/backup.sh`:
+Your data is stored in a **Docker named volume** that persists on your droplet's disk:
 
-```bash
-#!/bin/bash
-BACKUP_DIR="/backups"
-APP_DIR="/apps/team-tourney-tracker"
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+```
+Container Path:  /db/
+  ├── sports.db         (main database)
+  └── backups/          (backup files)
+        ├── sports_backup_2026-01-06_10-30-45.db
+        ├── sports_backup_2026-01-05_10-30-45.db
+        └── ...
 
-# Create backup directory if it doesn't exist
-mkdir -p $BACKUP_DIR
-
-# Copy database
-cp $APP_DIR/db/sports.db $BACKUP_DIR/sports_db_$TIMESTAMP.db
-
-# Keep only last 30 days of backups
-find $BACKUP_DIR -name "sports_db_*.db" -mtime +30 -delete
-
-echo "Backup completed: sports_db_$TIMESTAMP.db"
+Droplet Path: /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/
+  (Same structure as above)
 ```
 
-Schedule with cron:
+**Key Point:** All data is on your droplet's disk. Backups are automatically deleted after 30 days, so you should periodically copy them to external storage.
+
+### 9.2 Backup System Overview
+
+The application includes a **dual-mode backup system**:
+
+#### Local Backups (Always Enabled, No Configuration)
+- Automatic weekly backups created in background
+- Manual backups triggered from Admin → Backups panel
+- Download backups directly from the web UI
+- Backups older than 30 days automatically deleted
+- Stored at: `/var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/`
+
+#### Email Backups (Optional)
+- Sends backup as email attachment (if SMTP configured)
+- Requires working email provider (Gmail, SendGrid, etc.)
+- **DigitalOcean blocks SMTP ports by default**
+
+### 9.3 Email Backup Configuration (Optional)
+
+If you want email backups **and have SMTP access**, add to `.env`:
+
 ```bash
-# Run daily at 2 AM
-0 2 * * * /apps/team-tourney-tracker/backup.sh
+SENDER_EMAIL=your-email@gmail.com
+SENDER_APP_PASSWORD=your-16-char-app-password
+BACKUP_EMAIL=backup-recipient@example.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587  # or 465 for implicit TLS
+```
+
+**To get SMTP access on DigitalOcean:**
+1. Contact DigitalOcean support via control panel
+2. Request "SMTP port unblock" (port 587 or 465)
+3. Explain you need it for database backups
+4. Wait for approval (typically 1-2 days)
+
+**If you don't need email backups:** Simply don't set these variables. Local backups will work fine.
+
+### 9.4 Backup Management Tasks
+
+#### View Current Backups
+```bash
+# SSH into your droplet
+ssh root@your-droplet-ip
+
+# View all backup files
+ls -lh /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/
+
+# Count backups
+ls /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/ | wc -l
+```
+
+#### Download a Backup to Your Computer
+```bash
+# From your local machine
+scp root@your-droplet-ip:/var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/sports_backup_TIMESTAMP.db ./
+
+# Or download via the web UI: Admin → Backups → Download button
+```
+
+#### Create a Backup Now (from droplet)
+```bash
+# Method 1: Use web UI (Admin → Backups → Create Backup Now)
+
+# Method 2: Command line
+docker exec tourney-tracker-backend curl -X POST http://localhost:8080/admin/backup \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+#### Restore from Backup (if needed)
+```bash
+# Stop the application
+cd /apps/team-tourney-tracker
+docker-compose -f docker-compose.prod.yml down
+
+# Replace the database with your backup
+cp ./db/backups/sports_backup_TIMESTAMP.db ./db/sports.db
+
+# Start the application again
+docker-compose -f docker-compose.prod.yml up -d
+
+# Verify restoration worked
+docker-compose logs -f backend
+```
+
+#### Export Backups for Long-Term Storage
+
+Since backups are deleted after 30 days, periodically archive them:
+
+```bash
+# Create a tar archive of all backups
+tar -czf ~/backups_archive_$(date +%Y-%m-%d).tar.gz \
+  /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/
+
+# Download to your computer
+scp root@your-droplet-ip:~/backups_archive_*.tar.gz ./
+
+# Or upload to cloud storage (AWS S3, Google Drive, etc.)
+```
+
+### 9.5 Monitoring Backup Storage
+
+With only 3 backups at a time, storage usage is minimal. Monitor it occasionally:
+
+```bash
+# Check volume size
+du -sh /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/
+
+# Check droplet disk usage
+df -h
+
+# Check if running low on space
+df -h | grep -E '(8[0-9]|9[0-9]|100)%'  # Alerts if >80% used
+
+# List current backups (should be 0-3 files)
+ls -lh /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/
 ```
 
 ## Step 10: Monitoring & Maintenance
@@ -500,8 +625,9 @@ Before going live, verify:
 - [ ] SSL certificate installed and working
 - [ ] CORS_ORIGIN set to production domain
 - [ ] JWT_SECRET set to strong random value
-- [ ] Database backups configured
-- [ ] Email backups working
+- [ ] Local backups enabled (automatic, no config needed)
+- [ ] Can create/download backups from Admin panel
+- [ ] Email backups configured (optional, SMTP may be blocked)
 - [ ] Firewall rules configured
 - [ ] Automatic updates enabled
 - [ ] SSH key-based auth enabled
@@ -511,6 +637,7 @@ Before going live, verify:
 - [ ] DNS records pointing correctly
 - [ ] Application accessible via domain
 - [ ] Admin credentials changed from defaults
+- [ ] Backup archive procedure in place (for long-term storage)
 
 ## Step 12: Troubleshooting
 
@@ -551,44 +678,60 @@ certbot certificates
 certbot renew --force-renewal
 ```
 
-### Email Backup Timeout Errors
+### Email Backup Timeout Errors (Optional Feature)
 
-If you see `i/o timeout` errors on port 587:
+Email backups are **optional**. The application creates local backups automatically and works fine without email.
 
+**If you configured SMTP and see `i/o timeout` errors:**
+
+**Option 1: Use Local Backups Only (Recommended)**
+- Local backups work out of the box
+- Access from Admin → Backups panel
+- No SMTP configuration needed
+- Simply don't set `BACKUP_EMAIL` in your `.env`
+
+**Option 2: Request SMTP Unblock from DigitalOcean**
 ```bash
-# Option 1: Try port 465 (SMTPS)
+# Contact DigitalOcean support:
+# 1. Log into control panel
+# 2. Create support ticket requesting SMTP port unblock
+# 3. Explain for database backups
+# 4. Wait for approval (1-2 days)
+
+# Once approved, try:
 nano /apps/team-tourney-tracker/.env
+# Set: SMTP_PORT=465 (better success rate than 587)
 
-# Change:
-SMTP_HOST=smtp.gmail.com:465
-# OR
-SMTP_PORT=465
-
-# Restart:
 docker-compose -f docker-compose.prod.yml restart backend
-
-# Check logs:
 docker-compose -f docker-compose.prod.yml logs backend
 ```
 
-If port 465 doesn't work either:
+**Option 3: Use SendGrid or Similar Service**
+- Free tier available (SendGrid: 100 emails/day)
+- More reliable with cloud providers
+- Requires code modification to `backend/backup.go`
+- Contact us for implementation help
+
+**Why this happens:** Cloud providers block outbound SMTP ports (25, 465, 587) to prevent spam. This is expected behavior, not a misconfiguration.
+
+### Backup Storage Running Full
+
+If `/var/lib/docker/volumes/team-tourney-tracker_db_volume/` is consuming too much disk:
 
 ```bash
-# Option 2: Disable email backups for now
-nano /apps/team-tourney-tracker/.env
+# Check storage usage
+du -sh /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/
 
-# Comment out all SMTP_* and BACKUP_EMAIL lines:
-# SMTP_HOST=...
-# SENDER_EMAIL=...
-# etc.
+# View all backups
+ls -lh /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/
 
-docker-compose -f docker-compose.prod.yml restart backend
+# Manual cleanup (keeps last 10 backups)
+ls -t /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/ | tail -n +11 | xargs -d '\n' rm
+
+# Export backups to cloud storage (recommended before deleting)
+tar -czf ~/tournament_backups_$(date +%Y-%m-%d).tar.gz \
+  /var/lib/docker/volumes/team-tourney-tracker_db_volume/_data/backups/
 ```
-
-**Why this happens:** Some cloud providers (DigitalOcean, AWS, etc.) block outbound SMTP ports (25, 587) by default to prevent spam. Port 465 (SMTPS) often works better. You can also:
-- Use a different email service (SendGrid, Mailgun, etc.)
-- Request DigitalOcean to unblock SMTP ports (they may require email verification)
-- Use manual backups via the admin panel instead
 
 ## Cost Estimate
 

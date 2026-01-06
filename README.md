@@ -9,7 +9,7 @@ A web application for managing and tracking tournament results, team standings, 
 - **Match Recording**: Record match results and live scoring
 - **Standings**: View real-time team standings and win percentages
 - **Player Statistics**: Track individual player performance metrics
-- **Database Backups**: Automated weekly database backups via email
+- **Database Backups**: Automated weekly local backups with download capability
 - **Admin Dashboard**: Comprehensive admin interface for managing all data
 
 ## Technology Stack
@@ -106,16 +106,7 @@ The frontend will run on `http://localhost:5173`
 
 Create a `.env` file in the root directory with the following variables:
 
-#### Required for Email Backups
-```bash
-# Gmail SMTP Configuration
-SMTP_HOST=smtp.gmail.com
-SENDER_EMAIL=your-email@gmail.com
-SENDER_APP_PASSWORD=xxxx xxxx xxxx xxxx
-BACKUP_EMAIL=recipient@example.com
-```
-
-#### Optional
+#### Core Configuration
 ```bash
 # JWT Secret Key (generates warning if not set)
 JWT_SECRET=your-strong-secret-key-here
@@ -127,9 +118,36 @@ CORS_ORIGIN=https://your-domain.com
 VITE_API_URL=http://localhost:8080
 ```
 
-### Gmail App Password Setup
+#### Optional: Email Backups
+```bash
+# Gmail SMTP Configuration (optional - local backups work without this)
+SMTP_HOST=smtp.gmail.com
+SENDER_EMAIL=your-email@gmail.com
+SENDER_APP_PASSWORD=xxxx xxxx xxxx xxxx
+BACKUP_EMAIL=recipient@example.com
+SMTP_PORT=587  # or 465 for implicit TLS
+```
 
-To enable database backups via email:
+### Database Backups
+
+**How Backups Work:**
+- ✅ Local backups are **always enabled** - stored in `/db/backups/`
+- ✅ Weekly automatic backups run in the background
+- ✅ Admins can manually trigger backups from Admin → Backups panel
+- ✅ Admins can download backups directly from the UI
+- 📧 Email backups are **optional** - only if SMTP is configured
+
+**Accessing Backups:**
+1. Log in as admin
+2. Go to Admin → Backups
+3. Create manual backups or download existing ones
+
+**Note on Cloud Providers:**
+DigitalOcean blocks SMTP ports by default. See [DIGITALOCEAN_DEPLOYMENT.md](./DIGITALOCEAN_DEPLOYMENT.md) for solutions.
+
+### Gmail App Password Setup (Optional)
+
+To enable email backups with Gmail:
 
 1. Go to [Google Account Settings](https://myaccount.google.com/apppasswords)
 2. Select "Mail" and your device type
@@ -153,6 +171,11 @@ Two default user accounts are pre-configured:
 - `POST /auth/login` - Login with username and password
 - `POST /auth/register` - Register a new user
 - `GET/POST/DELETE /auth/users` - Manage users (admin only)
+
+### Backups
+- `POST /admin/backup` - Create a new database backup
+- `GET /admin/backup` - List available backups
+- `GET /admin/backup/download?file=filename` - Download a backup file
 
 ### Teams
 - `GET /teams` - List all teams
@@ -255,11 +278,17 @@ docker-compose up -d
 - Ensure backend is running and accessible
 - Check browser console for CORS errors
 
-### Email backups not working
-- Verify SMTP credentials are correct
-- Use app-specific password, not regular Gmail password
-- Check BACKUP_EMAIL is set
-- Review backend logs for email errors
+### Database backups not accessible
+- Backups are stored locally in `/db/backups/` by default
+- Check that the directory exists and has write permissions
+- Use the Admin → Backups panel to create and download backups
+- No SMTP configuration needed for local backups
+
+### Email backups not working (optional)
+- Email backups are optional - local backups work without SMTP
+- If SMTP is blocked, check with your hosting provider
+- On DigitalOcean, request SMTP port unblock via support ticket
+- Alternatively, use SendGrid API or stick with local backups
 
 ### Database locked error
 - Only one process should access database at a time
