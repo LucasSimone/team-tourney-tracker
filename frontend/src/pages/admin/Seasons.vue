@@ -1,7 +1,5 @@
 <template>
   <div class="admin-page">
-    <h2>Manage Seasons</h2>
-
     <div class="form-group">
       <input v-model.number="newSeason.year" type="number" placeholder="Year" @keyup.enter="addSeason" />
       <button @click="addSeason" class="btn-primary">Add Season</button>

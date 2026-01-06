@@ -1,7 +1,5 @@
 <template>
   <div class="admin-page">
-    <h2>Manage Teams</h2>
-
     <div class="form-group">
       <input v-model="newTeam.name" type="text" placeholder="Team name" />
       <select v-model.number="selectedPlayerForNew">

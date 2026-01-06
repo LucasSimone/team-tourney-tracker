@@ -39,7 +39,7 @@
         <h2>Teams</h2>
         <div class="team-cards">
           <div v-for="team in playerTeams" :key="team.id" class="team-card">
-            <div class="team-name">{{ team.name }}</div>
+            <router-link :to="`/teams/${team.id}`" class="team-name">{{ team.name }}</router-link>
             <div class="team-stats">
               <div class="stat-item">
                 <span class="stat-label">W</span>
@@ -56,6 +56,77 @@
             </div>
           </div>
           <div v-if="playerTeams.length === 0" class="empty-message">No team data available</div>
+        </div>
+      </div>
+
+      <div class="matchup-sections">
+        <div class="matchup-section">
+          <h2>Best Against</h2>
+          <div class="matchup-cards">
+            <div v-for="matchup in bestAgainst" :key="matchup.opponentId" class="matchup-card">
+              <router-link :to="`/players/${matchup.opponentId}`" class="opponent-name">{{ matchup.opponentName }}</router-link>
+              <div class="matchup-stats">
+                <div class="stat-badge wins">
+                  <span class="label">W</span>
+                  <span class="value">{{ matchup.wins }}</span>
+                </div>
+                <div class="stat-badge losses">
+                  <span class="label">L</span>
+                  <span class="value">{{ matchup.losses }}</span>
+                </div>
+                <div class="winrate">
+                  {{ matchup.winRate }}% Win Rate
+                </div>
+              </div>
+            </div>
+            <div v-if="bestAgainst.length === 0" class="empty-message">No matchups yet</div>
+          </div>
+        </div>
+
+        <div class="matchup-section">
+          <h2>Worst Against</h2>
+          <div class="matchup-cards">
+            <div v-for="matchup in worstAgainst" :key="matchup.opponentId" class="matchup-card">
+              <router-link :to="`/players/${matchup.opponentId}`" class="opponent-name">{{ matchup.opponentName }}</router-link>
+              <div class="matchup-stats">
+                <div class="stat-badge wins">
+                  <span class="label">W</span>
+                  <span class="value">{{ matchup.wins }}</span>
+                </div>
+                <div class="stat-badge losses">
+                  <span class="label">L</span>
+                  <span class="value">{{ matchup.losses }}</span>
+                </div>
+                <div class="winrate">
+                  {{ matchup.winRate }}% Win Rate
+                </div>
+              </div>
+            </div>
+            <div v-if="worstAgainst.length === 0" class="empty-message">No matchups yet</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="all-matchups-section">
+        <h2>All Matchups</h2>
+        <div class="matchup-cards">
+          <div v-for="matchup in allMatchups" :key="matchup.opponentId" class="matchup-card">
+            <router-link :to="`/players/${matchup.opponentId}`" class="opponent-name">{{ matchup.opponentName }}</router-link>
+            <div class="matchup-stats">
+              <div class="stat-badge wins">
+                <span class="label">W</span>
+                <span class="value">{{ matchup.wins }}</span>
+              </div>
+              <div class="stat-badge losses">
+                <span class="label">L</span>
+                <span class="value">{{ matchup.losses }}</span>
+              </div>
+              <div class="winrate">
+                {{ matchup.winRate }}% Win Rate
+              </div>
+            </div>
+          </div>
+          <div v-if="allMatchups.length === 0" class="empty-message">No matchups yet</div>
         </div>
       </div>
     </div>
@@ -85,13 +156,22 @@ interface TeamData {
   losses: number
   winRate: number
 }
+interface Matchup {
+  opponentId: number
+  opponentName: string
+  wins: number
+  losses: number
+  winRate: number
+}
 
 const api = API_URL
 const route = useRoute()
-const playerId = Number(route.params.id)
+
+const playerId = computed(() => Number(route.params.id))
 
 const player = ref<Player | null>(null)
 const teams = ref<Team[]>([])
+const players = ref<Player[]>([])
 const seasons = ref<Season[]>([])
 const teamPlayerMap = ref<Record<number, number[]>>({}) // team_id -> player_ids
 const matches = ref<Match[]>([])
@@ -113,17 +193,26 @@ const playerStats = computed(() => {
   // Find all teams this player is on
   const playerTeamIds: number[] = []
   Object.entries(teamPlayerMap.value).forEach(([teamId, playerIds]) => {
-    if (playerIds.includes(playerId)) {
+    if (playerIds.includes(playerId.value)) {
       playerTeamIds.push(Number(teamId))
     }
   })
 
+  // Create a Set to track matches we've already counted to avoid duplicates
+  const countedMatches = new Set<number>()
+
   // Count stats from matches where player's teams played
   filteredMatches.value.forEach(match => {
+    // Only count each match once
+    if (countedMatches.has(match.id || 0)) {
+      return
+    }
+
     const playerOnTeamA = playerTeamIds.includes(match.team_a_id)
     const playerOnTeamB = playerTeamIds.includes(match.team_b_id)
 
     if (playerOnTeamA || playerOnTeamB) {
+      countedMatches.add(match.id || 0)
       gamesPlayed++
 
       const playerTeamId = playerOnTeamA ? match.team_a_id : match.team_b_id
@@ -151,7 +240,7 @@ const playerTeams = computed(() => {
   // Find all teams this player is on
   const playerTeamIds: number[] = []
   Object.entries(teamPlayerMap.value).forEach(([teamId, playerIds]) => {
-    if (playerIds.includes(playerId)) {
+    if (playerIds.includes(playerId.value)) {
       playerTeamIds.push(Number(teamId))
     }
   })
@@ -199,6 +288,87 @@ const playerTeams = computed(() => {
   return Object.values(teamData)
 })
 
+const matchups = computed(() => {
+  const matchupMap: Record<number, Matchup> = {}
+
+  // Get all players this player has faced
+  filteredMatches.value.forEach(match => {
+    // Find all teams this player is on
+    const playerTeamIds: number[] = []
+    Object.entries(teamPlayerMap.value).forEach(([teamId, playerIds]) => {
+      if (playerIds.includes(playerId.value)) {
+        playerTeamIds.push(Number(teamId))
+      }
+    })
+
+    let playerTeamId = 0
+    let opponentTeamId = 0
+    let isWin = false
+
+    // Determine which side the player was on
+    if (playerTeamIds.includes(match.team_a_id)) {
+      playerTeamId = match.team_a_id
+      opponentTeamId = match.team_b_id
+      isWin = match.winner_id === match.team_a_id
+    } else if (playerTeamIds.includes(match.team_b_id)) {
+      playerTeamId = match.team_b_id
+      opponentTeamId = match.team_a_id
+      isWin = match.winner_id === match.team_b_id
+    } else {
+      return // Player not involved in this match
+    }
+
+    // Get all players on the opponent team
+    const opponentPlayerIds = teamPlayerMap.value[opponentTeamId] || []
+
+    // Record stats against each opponent player
+    opponentPlayerIds.forEach(opponentPlayerId => {
+      if (!matchupMap[opponentPlayerId]) {
+        const opponentPlayer = players.value.find(p => p.id === opponentPlayerId)
+        matchupMap[opponentPlayerId] = {
+          opponentId: opponentPlayerId,
+          opponentName: opponentPlayer?.name || 'Unknown',
+          wins: 0,
+          losses: 0,
+          winRate: 0
+        }
+      }
+
+      if (isWin) {
+        matchupMap[opponentPlayerId].wins++
+      } else {
+        matchupMap[opponentPlayerId].losses++
+      }
+    })
+  })
+
+  // Calculate win rates
+  Object.values(matchupMap).forEach(matchup => {
+    const total = matchup.wins + matchup.losses
+    if (total > 0) {
+      matchup.winRate = Math.round((matchup.wins / total) * 100)
+    }
+  })
+
+  return matchupMap
+})
+
+const allMatchups = computed(() => {
+  return Object.values(matchups.value).sort((a, b) => b.opponentName.localeCompare(a.opponentName))
+})
+
+const bestAgainst = computed(() => {
+  return Object.values(matchups.value)
+    .sort((a, b) => b.winRate - a.winRate)
+    .slice(0, 5)
+})
+
+const worstAgainst = computed(() => {
+  return Object.values(matchups.value)
+    .sort((a, b) => a.winRate - b.winRate)
+    .slice(0, 5)
+})
+
 const currentSeasonId = computed(() => {
   if (seasons.value.length === 0) return 0
   const latest = seasons.value.reduce((latest, current) =>
@@ -214,7 +384,14 @@ const isCurrentSeason = (seasonId?: number) => {
 onMounted(() => {
   fetchPlayer()
   fetchTeams()
+  fetchPlayers()
   fetchSeasons()
+  fetchMatches()
+})
+
+watch(playerId, () => {
+  loading.value = true
+  fetchPlayer()
   fetchMatches()
 })
 
@@ -224,7 +401,7 @@ watch(selectedSeasonId, () => {
 
 const fetchPlayer = async () => {
   try {
-    const res = await fetch(`${api}/players/${playerId}`)
+    const res = await fetch(`${api}/players/${playerId.value}`)
     if (res.ok) {
       const data = await res.json()
       player.value = data
@@ -245,6 +422,18 @@ const fetchTeams = async () => {
     }
   } catch (e) {
     console.error('Failed to fetch teams', e)
+  }
+}
+
+const fetchPlayers = async () => {
+  try {
+    const res = await fetch(`${api}/players`)
+    if (res.ok) {
+      const data = await res.json()
+      players.value = data || []
+    }
+  } catch (e) {
+    console.error('Failed to fetch players', e)
   }
 }
 
@@ -324,8 +513,9 @@ const fetchMatches = async () => {
 
 .header {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--spacing-lg);
+  align-items: flex-start;
 }
 
 .back-button {
@@ -451,6 +641,14 @@ h2 {
   font-size: 18px;
   font-weight: 600;
   flex: 1;
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.team-name:hover {
+  color: #60a5fa;
+  text-decoration: underline;
 }
 
 .team-stats {
@@ -498,6 +696,102 @@ h2 {
   border-radius: var(--radius);
 }
 
+.matchup-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-xl);
+  margin-top: var(--spacing-xl);
+}
+
+.matchup-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.matchup-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.matchup-card {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: var(--radius);
+  padding: var(--spacing-lg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: white;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.matchup-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.opponent-name {
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.opponent-name:hover {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.matchup-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  margin-left: var(--spacing-lg);
+}
+
+.stat-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 50px;
+}
+
+.stat-badge.wins {
+  color: #4ade80;
+}
+
+.stat-badge.losses {
+  color: #f87171;
+}
+
+.stat-badge .label {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
+.stat-badge .value {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.winrate {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+
+.all-matchups-section {
+  margin-top: var(--spacing-xl);
+}
+
 @media (max-width: 768px) {
   .header {
     flex-direction: column;
@@ -519,6 +813,25 @@ h2 {
   }
 
   .team-stats {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .matchup-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .matchup-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+
+  .opponent-name {
+    width: 100%;
+  }
+
+  .matchup-stats {
     margin-left: 0;
     width: 100%;
   }

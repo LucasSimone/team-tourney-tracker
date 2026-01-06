@@ -1,7 +1,5 @@
 <template>
   <div class="admin-page">
-    <h2>Manage Users</h2>
-
     <div class="form-group">
       <input v-model="newUser.username" type="text" placeholder="Username" />
       <input v-model="newUser.password" type="password" placeholder="Password" />

@@ -1,7 +1,5 @@
 <template>
   <div class="admin-page">
-    <h2>Database Backups</h2>
-
     <div class="backup-section">
       <p>Manually trigger a database backup. Backups are stored locally on the server.</p>
       <button 

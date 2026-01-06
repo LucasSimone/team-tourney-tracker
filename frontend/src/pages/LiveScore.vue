@@ -1,7 +1,5 @@
 <template>
   <div class="live-score-container">
-    <h1>Live Score Tracker</h1>
-    
     <div class="teams-row">
       <!-- Team A Card -->
       <div class="team-card" @click="showTeamModal('a')">

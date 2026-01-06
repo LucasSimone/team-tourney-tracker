@@ -1,7 +1,5 @@
 <template>
   <div class="games-page">
-    <h1>Games</h1>
-
     <div class="filters">
       <div class="filter-group">
         <select v-model="selectedTeamId" class="filter-select">

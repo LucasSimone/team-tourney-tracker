@@ -1,7 +1,5 @@
 <template>
   <div class="admin-page">
-    <h2>Manage Players</h2>
-
     <div class="form-group">
       <input v-model="newPlayer.name" type="text" placeholder="Player name" @keyup.enter="addPlayer" />
       <button @click="addPlayer" class="btn-primary">Add Player</button>

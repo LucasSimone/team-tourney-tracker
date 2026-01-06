@@ -1,7 +1,5 @@
 <template>
   <div class="seasons-page">
-    <h1>Seasons</h1>
-
     <div v-if="seasons.length === 0" class="empty-state">
       No seasons available yet. Check back soon!
     </div>

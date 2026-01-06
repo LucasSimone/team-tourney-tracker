@@ -1,7 +1,5 @@
 <template>
   <div class="admin-page">
-    <h2>Manage Matches</h2>
-
     <div class="form-group">
       <div class="form-row">
         <div class="form-column">

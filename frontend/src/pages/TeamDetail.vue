@@ -16,12 +16,31 @@
         </select>
       </div>
 
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Games Played</div>
+          <div class="stat-value">{{ teamStats.gamesPlayed }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Wins</div>
+          <div class="stat-value stat-wins">{{ teamStats.wins }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Losses</div>
+          <div class="stat-value stat-losses">{{ teamStats.losses }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Win Rate</div>
+          <div class="stat-value stat-winpct">{{ teamStats.winRate }}%</div>
+        </div>
+      </div>
+
       <div class="matchup-sections">
         <div class="matchup-section">
           <h2>Best Against</h2>
           <div class="matchup-cards">
             <div v-for="matchup in bestAgainst" :key="matchup.opponentId" class="matchup-card">
-              <div class="opponent-name">{{ matchup.opponentName }}</div>
+              <router-link :to="`/teams/${matchup.opponentId}`" class="opponent-name">{{ matchup.opponentName }}</router-link>
               <div class="matchup-stats">
                 <div class="stat-badge wins">
                   <span class="label">W</span>
@@ -44,7 +63,7 @@
           <h2>Worst Against</h2>
           <div class="matchup-cards">
             <div v-for="matchup in worstAgainst" :key="matchup.opponentId" class="matchup-card">
-              <div class="opponent-name">{{ matchup.opponentName }}</div>
+              <router-link :to="`/teams/${matchup.opponentId}`" class="opponent-name">{{ matchup.opponentName }}</router-link>
               <div class="matchup-stats">
                 <div class="stat-badge wins">
                   <span class="label">W</span>
@@ -68,7 +87,7 @@
         <h2>All Matchups</h2>
         <div class="matchup-cards">
           <div v-for="matchup in allMatchups" :key="matchup.opponentId" class="matchup-card">
-            <div class="opponent-name">{{ matchup.opponentName }}</div>
+            <router-link :to="`/teams/${matchup.opponentId}`" class="opponent-name">{{ matchup.opponentName }}</router-link>
             <div class="matchup-stats">
               <div class="stat-badge wins">
                 <span class="label">W</span>
@@ -93,7 +112,7 @@
 
 <script setup lang="ts">
 import { API_URL } from '@/config'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 interface Team { id?: number; name: string }
@@ -115,7 +134,8 @@ interface Matchup {
 
 const api = API_URL
 const route = useRoute()
-const teamId = Number(route.params.id)
+
+const teamId = computed(() => Number(route.params.id))
 
 const team = ref<Team | null>(null)
 const teams = ref<Team[]>([])
@@ -131,6 +151,34 @@ const filteredMatches = computed(() => {
   return matches.value.filter(m => m.season_id === selectedSeasonId.value)
 })
 
+const teamStats = computed(() => {
+  let gamesPlayed = 0
+  let wins = 0
+  let losses = 0
+
+  filteredMatches.value.forEach(match => {
+    // Check if this team was involved in the match
+    if (match.team_a_id === teamId.value || match.team_b_id === teamId.value) {
+      gamesPlayed++
+
+      if (match.winner_id === teamId.value) {
+        wins++
+      } else {
+        losses++
+      }
+    }
+  })
+
+  const winRate = gamesPlayed > 0 ? Math.round((wins / gamesPlayed) * 100) : 0
+
+  return {
+    gamesPlayed,
+    wins,
+    losses,
+    winRate
+  }
+})
+
 const matchups = computed(() => {
   const matchupMap: Record<number, Matchup> = {}
 
@@ -139,12 +187,12 @@ const matchups = computed(() => {
     let isWin = false
 
     // Determine if this team was team_a or team_b
-    if (match.team_a_id === teamId) {
+    if (match.team_a_id === teamId.value) {
       opponentId = match.team_b_id
-      isWin = match.winner_id === teamId
-    } else if (match.team_b_id === teamId) {
+      isWin = match.winner_id === teamId.value
+    } else if (match.team_b_id === teamId.value) {
       opponentId = match.team_a_id
-      isWin = match.winner_id === teamId
+      isWin = match.winner_id === teamId.value
     } else {
       return // This match doesn't involve our team
     }
@@ -213,9 +261,15 @@ onMounted(() => {
   fetchMatches()
 })
 
+watch(teamId, () => {
+  loading.value = true
+  fetchTeam()
+  fetchMatches()
+})
+
 const fetchTeam = async () => {
   try {
-    const res = await fetch(`${api}/teams/${teamId}`)
+    const res = await fetch(`${api}/teams/${teamId.value}`)
     if (res.ok) {
       const data = await res.json()
       team.value = data
@@ -293,8 +347,9 @@ const fetchMatches = async () => {
 
 .header {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--spacing-lg);
+  align-items: flex-start;
 }
 
 .back-button {
@@ -338,6 +393,57 @@ h2 {
   font-size: 14px;
 }
 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-xl);
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: var(--radius);
+  padding: var(--spacing-lg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  color: white;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.stat-card .stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-card .stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.stat-card .stat-wins {
+  color: #4ade80;
+}
+
+.stat-card .stat-losses {
+  color: #f87171;
+}
+
+.stat-card .stat-winpct {
+  color: #60a5fa;
+}
+
 .matchup-sections {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -378,6 +484,14 @@ h2 {
   font-size: 16px;
   font-weight: 600;
   flex: 1;
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.opponent-name:hover {
+  color: #60a5fa;
+  text-decoration: underline;
 }
 
 .matchup-stats {

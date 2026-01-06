@@ -1,7 +1,5 @@
 <template>
   <div class="standings-page">
-    <h1>Standings</h1>
-
     <div v-if="seasons.length > 0" class="season-filter">
       <select v-model.number="selectedSeasonId">
         <option value="0">All Seasons</option>

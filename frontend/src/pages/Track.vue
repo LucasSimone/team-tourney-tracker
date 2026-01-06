@@ -1,7 +1,5 @@
 <template>
   <div class="track-page">
-    <h1>Track Match</h1>
-
     <!-- Season Selector -->
     <div class="season-selector">
       <select v-model.number="selectedSeasonId" class="season-select">
@@ -78,12 +76,12 @@
           <div class="review-matchup">
             <div class="team-info">
               <div class="team-name">{{ teamA?.name }}</div>
-              <div class="team-score">{{ scoreA ?? 0 }}</div>
+              <div class="team-score" :class="getScoreClass('a')">{{ scoreA ?? 0 }}</div>
             </div>
             <div class="vs-text">vs</div>
             <div class="team-info">
               <div class="team-name">{{ teamB?.name }}</div>
-              <div class="team-score">{{ scoreB ?? 0 }}</div>
+              <div class="team-score" :class="getScoreClass('b')">{{ scoreB ?? 0 }}</div>
             </div>
           </div>
 
@@ -298,6 +296,28 @@ const getSeasonYear = (id: number): number => {
   return seasons.value.find(s => s.id === id)?.year || 0
 }
 
+const getScoreClass = (team: 'a' | 'b'): string => {
+  const scoreAValue = scoreA.value ?? 0
+  const scoreBValue = scoreB.value ?? 0
+
+  // If both scores are 0 or null, keep it white
+  if ((scoreA.value === null || scoreAValue === 0) && (scoreB.value === null || scoreBValue === 0)) {
+    return ''
+  }
+
+  // If it's a tie, keep it white
+  if (scoreAValue === scoreBValue) {
+    return ''
+  }
+
+  // Determine winner/loser colors
+  if (team === 'a') {
+    return scoreAValue > scoreBValue ? 'score-winner' : 'score-loser'
+  } else {
+    return scoreBValue > scoreAValue ? 'score-winner' : 'score-loser'
+  }
+}
+
 const showTeamModal = (slot: 'a' | 'b') => {
   selectedTeamSlot.value = slot
   searchQuery.value = ''
@@ -327,7 +347,8 @@ const proceedToReview = () => {
   // Determine if we have valid scores that aren't 0-0
   const scoreAValue = scoreA.value ?? 0
   const scoreBValue = scoreB.value ?? 0
-  const hasRealScores = scoreA.value !== null && scoreB.value !== null && (scoreAValue !== 0 || scoreBValue !== 0)
+  // Consider scores valid if at least one is entered and they're not both 0
+  const hasRealScores = (scoreA.value !== null || scoreB.value !== null) && (scoreAValue !== 0 || scoreBValue !== 0)
 
   if (hasRealScores) {
     // Auto-determine winner from scores
@@ -517,7 +538,7 @@ h1 {
   font-size: 2rem;
   text-align: center;
   background-color: #0f3460;
-  color: #5b18c7;
+  color: #ffffff;
   border: 2px solid #5b18c7;
   border-radius: 8px;
   font-weight: bold;
@@ -644,6 +665,14 @@ h1 {
   color: #5b18c7;
   font-size: 2rem;
   font-weight: bold;
+}
+
+.team-score.score-winner {
+  color: #22c55e;
+}
+
+.team-score.score-loser {
+  color: #ef4444;
 }
 
 .vs-text {

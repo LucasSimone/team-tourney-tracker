@@ -2,7 +2,7 @@
   <div class="dark">
     <header class="navbar" :class="{ 'nav-open': menuOpen }">
       <div class="navbar-header">
-        <h1>Tourney Tracker</h1>
+        <h1>{{ pageTitle }}</h1>
         <button class="hamburger" :class="{ active: menuOpen }" @click="menuOpen = !menuOpen">
           <span></span>
           <span></span>
@@ -52,10 +52,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 
 const router = useRouter()
+const route = useRoute()
 const menuOpen = ref(false)
 const adminMenuOpen = ref(false)
 
@@ -63,6 +64,32 @@ const { user, isAdmin, isLoggedIn, initialize, logout } = useAuth()
 
 const isAdminUser = computed(() => isAdmin())
 const isLoggedInUser = computed(() => isLoggedIn())
+
+const pageTitle = computed(() => {
+  const routeName = route.name as string
+  if (!routeName) return 'Tourney Tracker'
+  
+  // Map route names to display titles
+  const titleMap: Record<string, string> = {
+    'Login': 'Login',
+    'Standings': 'Standings',
+    'StandingsAlias': 'Standings',
+    'TeamDetail': 'Team Detail',
+    'PlayerDetail': 'Player Detail',
+    'Games': 'Games',
+    'PublicSeasons': 'Seasons',
+    'Track': 'Track Match',
+    'LiveScore': 'Live Score',
+    'AdminTeams': 'Admin: Teams',
+    'AdminPlayers': 'Admin: Players',
+    'AdminSeasons': 'Admin: Seasons',
+    'AdminMatches': 'Admin: Matches',
+    'AdminUsers': 'Admin: Users',
+    'AdminBackup': 'Admin: Backups'
+  }
+  
+  return titleMap[routeName] || 'Tourney Tracker'
+})
 
 onMounted(() => {
   initialize()
