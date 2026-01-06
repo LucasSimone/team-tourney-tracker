@@ -1,47 +1,86 @@
 <template>
   <div class="live-score-container">
-    <div class="teams-row">
-      <!-- Team A Card -->
-      <div class="team-card" @click="showTeamModal('a')">
-        <div v-if="teamA" class="team-selected">
-          <h2>{{ teamA.name }}</h2>
-          <div class="score-display" :class="getScoreClass('a')">{{ scoreA }}</div>
-          <div class="score-controls">
-            <button @click.stop="decreaseScore('a')" class="score-btn minus">−</button>
-            <button @click.stop="increaseScore('a')" class="score-btn plus">+</button>
+    <!-- Step 1: Score Entry -->
+    <div v-if="!reviewMode" class="step-1">
+      <div class="teams-row">
+        <!-- Team A Card -->
+        <div class="team-card" @click="showTeamModal('a')">
+          <div v-if="teamA" class="team-selected">
+            <h2>{{ teamA.name }}</h2>
+            <div class="score-display" :class="getScoreClass('a')">{{ scoreA }}</div>
+            <div class="score-controls">
+              <button @click.stop="decreaseScore('a')" class="score-btn minus">−</button>
+              <button @click.stop="increaseScore('a')" class="score-btn plus">+</button>
+            </div>
+          </div>
+          <div v-else class="team-placeholder">
+            <p>Click to select Team A</p>
           </div>
         </div>
-        <div v-else class="team-placeholder">
-          <p>Click to select Team A</p>
+
+        <!-- VS Separator -->
+        <div class="vs-separator">
+          <span>VS</span>
+        </div>
+
+        <!-- Team B Card -->
+        <div class="team-card" @click="showTeamModal('b')">
+          <div v-if="teamB" class="team-selected">
+            <h2>{{ teamB.name }}</h2>
+            <div class="score-display" :class="getScoreClass('b')">{{ scoreB }}</div>
+            <div class="score-controls">
+              <button @click.stop="decreaseScore('b')" class="score-btn minus">−</button>
+              <button @click.stop="increaseScore('b')" class="score-btn plus">+</button>
+            </div>
+          </div>
+          <div v-else class="team-placeholder">
+            <p>Click to select Team B</p>
+          </div>
         </div>
       </div>
 
-      <!-- VS Separator -->
-      <div class="vs-separator">
-        <span>VS</span>
-      </div>
-
-      <!-- Team B Card -->
-      <div class="team-card" @click="showTeamModal('b')">
-        <div v-if="teamB" class="team-selected">
-          <h2>{{ teamB.name }}</h2>
-          <div class="score-display" :class="getScoreClass('b')">{{ scoreB }}</div>
-          <div class="score-controls">
-            <button @click.stop="decreaseScore('b')" class="score-btn minus">−</button>
-            <button @click.stop="increaseScore('b')" class="score-btn plus">+</button>
-          </div>
-        </div>
-        <div v-else class="team-placeholder">
-          <p>Click to select Team B</p>
-        </div>
+      <!-- Submit Button -->
+      <div v-if="teamA && teamB" class="submit-section">
+        <button @click="proceedToReview" class="submit-btn" :disabled="isSubmitting">
+          {{ isSubmitting ? 'Processing...' : 'Next' }}
+        </button>
       </div>
     </div>
 
-    <!-- Submit Button -->
-    <div v-if="teamA && teamB" class="submit-section">
-      <button @click="submitMatch" class="submit-btn" :disabled="isSubmitting">
-        {{ isSubmitting ? 'Submitting...' : 'Submit Match' }}
-      </button>
+    <!-- Step 2: Review and Confirmation -->
+    <div v-if="reviewMode" class="step-2">
+      <div class="review-card">
+        <h2>Review Match</h2>
+        
+        <div class="review-content">
+          <div class="review-matchup">
+            <div class="team-info">
+              <div class="team-name">{{ teamA?.name }}</div>
+              <div class="team-score" :class="getScoreClass('a')">{{ scoreA }}</div>
+            </div>
+            <div class="vs-text">vs</div>
+            <div class="team-info">
+              <div class="team-name">{{ teamB?.name }}</div>
+              <div class="team-score" :class="getScoreClass('b')">{{ scoreB }}</div>
+            </div>
+          </div>
+
+          <div v-if="autoWinner" class="winner-display">
+            <p>🏆 {{ getTeamName(autoWinner) }} wins</p>
+          </div>
+        </div>
+
+        <div class="review-actions">
+          <button @click="reviewMode = false" class="btn-back">← Back</button>
+          <button 
+            @click="submitMatch" 
+            class="btn-submit" 
+            :disabled="isSubmitting"
+          >
+            {{ isSubmitting ? 'Submitting...' : 'Confirm & Submit' }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Team Selection Modal -->
@@ -69,6 +108,11 @@
         
         <button @click="closeModal" class="modal-close-btn">Cancel</button>
       </div>
+    </div>
+
+    <!-- Message Display -->
+    <div v-if="message" :class="['message', message.type]">
+      {{ message.text }}
     </div>
   </div>
 </template>
@@ -120,6 +164,17 @@ const teamPlayers = ref<{ [teamId: number]: number[] }>({})
 
 // Submission
 const isSubmitting = ref(false)
+
+// Review mode
+const reviewMode = ref(false)
+const autoWinner = ref<number | null>(null)
+
+// Messages
+interface Message {
+  type: 'success' | 'error'
+  text: string
+}
+const message = ref<Message | null>(null)
 
 const filteredTeams = computed(() => {
   return teams.value.filter(team => {
@@ -237,30 +292,57 @@ const getScoreClass = (team: 'a' | 'b'): string => {
   }
 }
 
+const getTeamName = (id: number): string => {
+  if (id === teamA.value?.id) return teamA.value.name
+  if (id === teamB.value?.id) return teamB.value.name
+  return 'Unknown Team'
+}
+
+const proceedToReview = () => {
+  if (!teamA.value || !teamB.value) {
+    showMessage('Please select both teams', 'error')
+    return
+  }
+
+  // Prevent 0-0 scores
+  if (scoreA.value === 0 && scoreB.value === 0) {
+    showMessage('Scores cannot be 0-0. At least one team must score.', 'error')
+    return
+  }
+
+  // Auto-determine winner from scores
+  if (scoreA.value > scoreB.value) {
+    autoWinner.value = teamA.value.id
+  } else if (scoreB.value > scoreA.value) {
+    autoWinner.value = teamB.value.id
+  } else {
+    // Tie - set to null, backend will handle
+    autoWinner.value = null
+  }
+
+  reviewMode.value = true
+}
+
+const showMessage = (text: string, type: 'success' | 'error') => {
+  message.value = { text, type }
+}
+
 const submitMatch = async () => {
   if (!teamA.value || !teamB.value) {
-    alert('Please select both teams')
+    showMessage('Please select both teams', 'error')
     return
   }
 
   if (!currentSeasonId.value) {
-    alert('No season found. Please create a season first.')
+    showMessage('No season found. Please create a season first.', 'error')
     return
   }
 
   isSubmitting.value = true
 
   try {
-    // Determine winner based on scores
-    let winnerId: number
-    if (scoreA.value > scoreB.value) {
-      winnerId = teamA.value.id
-    } else if (scoreB.value > scoreA.value) {
-      winnerId = teamB.value.id
-    } else {
-      // For ties, we'll use 0 or null - adjust based on your backend requirement
-      winnerId = 0
-    }
+    // Use the winner determined in review mode
+    let winnerId: number | null = autoWinner.value
 
     const match: Match = {
       season_id: currentSeasonId.value,
@@ -268,7 +350,7 @@ const submitMatch = async () => {
       score_a: scoreA.value,
       team_b_id: teamB.value.id,
       score_b: scoreB.value,
-      winner_id: winnerId
+      winner_id: winnerId || 0
     }
 
     const response = await fetch(`${API_URL}/matches`, {
@@ -281,17 +363,23 @@ const submitMatch = async () => {
     })
 
     if (response.ok) {
-      alert('Match submitted successfully!')
+      showMessage('Match recorded successfully! 🎉', 'success')
+      // Reset form
       teamA.value = null
       teamB.value = null
       scoreA.value = 0
       scoreB.value = 0
+      autoWinner.value = null
+      reviewMode.value = false
+      setTimeout(() => {
+        message.value = null
+      }, 3000)
     } else {
-      alert('Failed to submit match')
+      showMessage('Failed to record match', 'error')
     }
   } catch (error) {
     console.error('Error submitting match:', error)
-    alert('Error submitting match')
+    showMessage('Error recording match', 'error')
   } finally {
     isSubmitting.value = false
   }
@@ -305,16 +393,14 @@ onMounted(() => {
 
 <style scoped>
 .live-score-container {
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 2rem;
 }
 
-h1 {
-  text-align: center;
-  color: #ffffff;
-  margin-bottom: 2rem;
-  font-size: 2rem;
+/* Step 1: Team Cards */
+.step-1 {
+  display: flex;
+  flex-direction: column;
 }
 
 .teams-row {
@@ -322,7 +408,7 @@ h1 {
   grid-template-columns: 1fr auto 1fr;
   gap: 4rem;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .team-card {
@@ -438,7 +524,7 @@ h1 {
 .submit-section {
   display: flex;
   justify-content: center;
-  margin-top: 2rem;
+  margin-top: 0.5rem;
 }
 
 .submit-btn {
@@ -558,7 +644,277 @@ h1 {
 @media (max-width: 768px) {
   .teams-row {
     grid-template-columns: 1fr;
-    gap: 2rem;
+    gap: 1rem;
+  }
+
+  .vs-separator {
+    display: none;
+  }
+
+  .team-card {
+    min-height: 250px;
+  }
+
+  .score-display {
+    font-size: 3rem;
+  }
+
+  .modal-content {
+    width: 95%;
+  }
+}
+
+.review-card {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 2px solid #5b18c7;
+  border-radius: 12px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 600px;
+}
+
+.review-card h2 {
+  color: #ffffff;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.review-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.review-matchup {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.5rem;
+  background-color: #0f3460;
+  border-radius: 8px;
+}
+
+.team-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.team-name {
+  color: #ffffff;
+  font-weight: bold;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.team-score {
+  color: #5b18c7;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.team-score.score-winner {
+  color: #22c55e;
+}
+
+.team-score.score-loser {
+  color: #ef4444;
+}
+
+.vs-text {
+  color: #888;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.winner-display {
+  padding: 1rem;
+  background-color: #1a4d6d;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.winner-display p {
+  color: #4ade80;
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.review-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.btn-back,
+.btn-submit {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-back {
+  background-color: #f87171;
+  color: white;
+}
+
+.btn-back:hover {
+  background-color: #fb5757;
+}
+
+.btn-submit {
+  background: linear-gradient(135deg, #5b18c7 0%, #7237ce 100%);
+  color: white;
+}
+
+.btn-submit:hover:not(:disabled) {
+  box-shadow: 0 0 15px rgba(91, 24, 199, 0.4);
+}
+
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 2px solid #5b18c7;
+  border-radius: 12px;
+  padding: 2rem;
+  width: 90%;
+  max-width: 400px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-content h2 {
+  color: #ffffff;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.search-input {
+  background-color: #0f3460;
+  color: #ffffff;
+  border: 1px solid #5b18c7;
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.search-input::placeholder {
+  color: #888;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #7237ce;
+  box-shadow: 0 0 10px rgba(91, 24, 199, 0.3);
+}
+
+.teams-list {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.team-option {
+  background-color: #0f3460;
+  color: #ffffff;
+  padding: 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.team-option:hover {
+  background-color: #1a4d6d;
+  border-color: #5b18c7;
+}
+
+.modal-close-btn {
+  background-color: #f87171;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  align-self: center;
+}
+
+.modal-close-btn:hover {
+  background-color: #fb5757;
+}
+
+/* Message */
+.message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  font-weight: bold;
+  z-index: 2000;
+  max-width: 300px;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.message.success {
+  background-color: #4ade80;
+  color: #000;
+}
+
+.message.error {
+  background-color: #f87171;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .teams-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
   }
 
   .vs-separator {

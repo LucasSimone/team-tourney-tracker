@@ -31,12 +31,18 @@
     <div v-else class="games-list">
       <div v-for="game in filteredGames" :key="game.id" class="game-card">
         <div class="game-header">
-          <span class="game-date">{{ formatDate(game.createdAt) }}</span>
-          <span class="season-badge">Season {{ getSeasonYear(game.season_id) }}</span>
+          <div class="header-left">
+            <div class="game-date">{{ formatDate(game.createdAt) }}</div>
+            <div class="game-time">{{ formatTime(game.createdAt) }}</div>
+          </div>
+          <div class="header-right">
+            <span class="season-badge">Season {{ getSeasonYear(game.season_id) }}</span>
+          </div>
         </div>
 
         <div class="game-matchup">
           <div class="team-section team-a">
+            <span v-if="game.winner_id === game.team_a_id" class="winner-badge">🏆 Winner</span>
             <router-link :to="`/teams/${game.team_a_id}`" class="team-name">
               {{ getTeamName(game.team_a_id) }}
             </router-link>
@@ -47,12 +53,10 @@
 
           <div class="vs-section">
             <span class="vs">vs</span>
-            <span v-if="game.winner_id" class="winner-badge">
-              🏆 {{ getTeamName(game.winner_id) }} won
-            </span>
           </div>
 
           <div class="team-section team-b">
+            <span v-if="game.winner_id === game.team_b_id" class="winner-badge">🏆 Winner</span>
             <router-link :to="`/teams/${game.team_b_id}`" class="team-name">
               {{ getTeamName(game.team_b_id) }}
             </router-link>
@@ -189,6 +193,15 @@ const formatDate = (dateStr?: string) => {
     year: 'numeric'
   })
 }
+
+const formatTime = (dateStr?: string) => {
+  if (!dateStr) return 'N/A'
+  const date = new Date(dateStr)
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 </script>
 
 <style scoped>
@@ -281,16 +294,33 @@ h1 {
 .game-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: var(--spacing-lg);
   padding-bottom: var(--spacing-md);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .game-date {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
   font-weight: 500;
+}
+
+.game-time {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+.header-right {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .season-badge {
@@ -322,6 +352,16 @@ h1 {
 
 .team-section.team-b {
   align-items: flex-start;
+}
+
+.winner-badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  background-color: rgba(74, 222, 128, 0.2);
+  border-radius: 4px;
+  color: #4ade80;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .team-name {
@@ -402,9 +442,13 @@ h1 {
   }
 
   .game-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .game-season {
+    width: 100%;
+    margin-bottom: var(--spacing-lg);
   }
 }
 </style>

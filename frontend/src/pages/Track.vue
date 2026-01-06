@@ -442,7 +442,6 @@ onMounted(() => {
 .track-page {
   max-width: 900px;
   margin: 0 auto;
-  padding: 2rem;
 }
 
 h1 {
@@ -456,7 +455,7 @@ h1 {
 .season-selector {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .season-select {
@@ -480,7 +479,6 @@ h1 {
 .step-1 {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
 }
 
 .teams-row {
@@ -488,7 +486,7 @@ h1 {
   grid-template-columns: 1fr auto 1fr;
   gap: 4rem;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .team-card {
@@ -564,7 +562,7 @@ h1 {
 .submit-section {
   display: flex;
   justify-content: center;
-  margin-top: 2rem;
+  margin-top: 0.5rem;
 }
 
 .submit-btn {
@@ -900,13 +898,10 @@ h1 {
 }
 
 @media (max-width: 768px) {
-  .track-page {
-    padding: 1rem;
-  }
 
   .teams-row {
     grid-template-columns: 1fr;
-    gap: 2rem;
+    gap: 1rem;
   }
 
   .vs-separator {
