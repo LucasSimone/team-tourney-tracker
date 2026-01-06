@@ -2,7 +2,7 @@
   <div class="dark">
     <header class="navbar" :class="{ 'nav-open': menuOpen }">
       <div class="navbar-header">
-        <h1>{{ pageTitle }}</h1>
+        <h1 v-if="pageTitle">{{ pageTitle }}</h1>
         <button class="hamburger" :class="{ active: menuOpen }" @click="menuOpen = !menuOpen">
           <span></span>
           <span></span>
@@ -51,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, provide } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 
@@ -59,23 +59,29 @@ const router = useRouter()
 const route = useRoute()
 const menuOpen = ref(false)
 const adminMenuOpen = ref(false)
+const detailPageTitle = ref<string>('')
 
 const { user, isAdmin, isLoggedIn, initialize, logout } = useAuth()
 
 const isAdminUser = computed(() => isAdmin())
 const isLoggedInUser = computed(() => isLoggedIn())
 
+// Provide a function for detail pages to update the navbar title
+const updateDetailTitle = (title: string) => {
+  detailPageTitle.value = title
+}
+provide('updateDetailTitle', updateDetailTitle)
+
 const pageTitle = computed(() => {
   const routeName = route.name as string
-  if (!routeName) return 'Tourney Tracker'
   
   // Map route names to display titles
   const titleMap: Record<string, string> = {
     'Login': 'Login',
     'Standings': 'Standings',
     'StandingsAlias': 'Standings',
-    'TeamDetail': 'Team Detail',
-    'PlayerDetail': 'Player Detail',
+    'TeamDetail': detailPageTitle.value,
+    'PlayerDetail': detailPageTitle.value,
     'Games': 'Games',
     'PublicSeasons': 'Seasons',
     'Track': 'Track Match',
@@ -88,7 +94,7 @@ const pageTitle = computed(() => {
     'AdminBackup': 'Admin: Backups'
   }
   
-  return titleMap[routeName] || 'Tourney Tracker'
+  return titleMap[routeName] ?? 'Tourney Tracker'
 })
 
 onMounted(() => {

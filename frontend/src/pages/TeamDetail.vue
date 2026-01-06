@@ -37,21 +37,26 @@
 
       <div class="matchup-sections">
         <div class="matchup-section">
-          <h2>Best Against</h2>
+          <h2>Best Matchup</h2>
           <div class="matchup-cards">
             <div v-for="matchup in bestAgainst" :key="matchup.opponentId" class="matchup-card">
-              <router-link :to="`/teams/${matchup.opponentId}`" class="opponent-name">{{ matchup.opponentName }}</router-link>
-              <div class="matchup-stats">
-                <div class="stat-badge wins">
-                  <span class="label">W</span>
-                  <span class="value">{{ matchup.wins }}</span>
+              <router-link :to="`/teams/${matchup.opponentId}`" class="card-name">{{ matchup.opponentName }}</router-link>
+              <div class="card-stats">
+                <div class="stat-item">
+                  <span class="stat-label">GP</span>
+                  <span class="stat-value">{{ matchup.gamesPlayed }}</span>
                 </div>
-                <div class="stat-badge losses">
-                  <span class="label">L</span>
-                  <span class="value">{{ matchup.losses }}</span>
+                <div class="stat-item">
+                  <span class="stat-label">W</span>
+                  <span class="stat-value stat-wins">{{ matchup.wins }}</span>
                 </div>
-                <div class="winrate">
-                  {{ matchup.winRate }}% Win Rate
+                <div class="stat-item">
+                  <span class="stat-label">L</span>
+                  <span class="stat-value stat-losses">{{ matchup.losses }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Win %</span>
+                  <span class="stat-value stat-winpct">{{ matchup.winRate }}%</span>
                 </div>
               </div>
             </div>
@@ -60,21 +65,26 @@
         </div>
 
         <div class="matchup-section">
-          <h2>Worst Against</h2>
+          <h2>Worst Matchup</h2>
           <div class="matchup-cards">
             <div v-for="matchup in worstAgainst" :key="matchup.opponentId" class="matchup-card">
-              <router-link :to="`/teams/${matchup.opponentId}`" class="opponent-name">{{ matchup.opponentName }}</router-link>
-              <div class="matchup-stats">
-                <div class="stat-badge wins">
-                  <span class="label">W</span>
-                  <span class="value">{{ matchup.wins }}</span>
+              <router-link :to="`/teams/${matchup.opponentId}`" class="card-name">{{ matchup.opponentName }}</router-link>
+              <div class="card-stats">
+                <div class="stat-item">
+                  <span class="stat-label">GP</span>
+                  <span class="stat-value">{{ matchup.gamesPlayed }}</span>
                 </div>
-                <div class="stat-badge losses">
-                  <span class="label">L</span>
-                  <span class="value">{{ matchup.losses }}</span>
+                <div class="stat-item">
+                  <span class="stat-label">W</span>
+                  <span class="stat-value stat-wins">{{ matchup.wins }}</span>
                 </div>
-                <div class="winrate">
-                  {{ matchup.winRate }}% Win Rate
+                <div class="stat-item">
+                  <span class="stat-label">L</span>
+                  <span class="stat-value stat-losses">{{ matchup.losses }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Win %</span>
+                  <span class="stat-value stat-winpct">{{ matchup.winRate }}%</span>
                 </div>
               </div>
             </div>
@@ -87,18 +97,23 @@
         <h2>All Matchups</h2>
         <div class="matchup-cards">
           <div v-for="matchup in allMatchups" :key="matchup.opponentId" class="matchup-card">
-            <router-link :to="`/teams/${matchup.opponentId}`" class="opponent-name">{{ matchup.opponentName }}</router-link>
-            <div class="matchup-stats">
-              <div class="stat-badge wins">
-                <span class="label">W</span>
-                <span class="value">{{ matchup.wins }}</span>
+            <router-link :to="`/teams/${matchup.opponentId}`" class="card-name">{{ matchup.opponentName }}</router-link>
+            <div class="card-stats">
+              <div class="stat-item">
+                <span class="stat-label">GP</span>
+                <span class="stat-value">{{ matchup.gamesPlayed }}</span>
               </div>
-              <div class="stat-badge losses">
-                <span class="label">L</span>
-                <span class="value">{{ matchup.losses }}</span>
+              <div class="stat-item">
+                <span class="stat-label">W</span>
+                <span class="stat-value stat-wins">{{ matchup.wins }}</span>
               </div>
-              <div class="winrate">
-                {{ matchup.winRate }}% Win Rate
+              <div class="stat-item">
+                <span class="stat-label">L</span>
+                <span class="stat-value stat-losses">{{ matchup.losses }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Win %</span>
+                <span class="stat-value stat-winpct">{{ matchup.winRate }}%</span>
               </div>
             </div>
           </div>
@@ -112,7 +127,7 @@
 
 <script setup lang="ts">
 import { API_URL } from '@/config'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, provide, inject } from 'vue'
 import { useRoute } from 'vue-router'
 
 interface Team { id?: number; name: string }
@@ -129,6 +144,7 @@ interface Matchup {
   opponentName: string
   wins: number
   losses: number
+  gamesPlayed: number
   winRate: number
 }
 
@@ -143,6 +159,19 @@ const seasons = ref<Season[]>([])
 const matches = ref<Match[]>([])
 const selectedSeasonId = ref(0)
 const loading = ref(true)
+
+// Get the title update function from App.vue
+const updateDetailTitle = inject<(title: string) => void>('updateDetailTitle')
+
+// Watch for team changes and update the navbar title
+watch(
+  () => team.value?.name,
+  (newName) => {
+    if (newName && updateDetailTitle) {
+      updateDetailTitle(newName)
+    }
+  }
+)
 
 const filteredMatches = computed(() => {
   if (selectedSeasonId.value === 0) {
@@ -204,6 +233,7 @@ const matchups = computed(() => {
         opponentName,
         wins: 0,
         losses: 0,
+        gamesPlayed: 0,
         winRate: 0
       }
     }
@@ -213,6 +243,7 @@ const matchups = computed(() => {
     } else {
       matchupMap[opponentId].losses++
     }
+    matchupMap[opponentId].gamesPlayed++
   })
 
   // Calculate win rates
@@ -227,7 +258,7 @@ const matchups = computed(() => {
 })
 
 const allMatchups = computed(() => {
-  return Object.values(matchups.value).sort((a, b) => b.opponentName.localeCompare(a.opponentName))
+  return Object.values(matchups.value).sort((a, b) => b.winRate - a.winRate)
 })
 
 const bestAgainst = computed(() => {
@@ -461,7 +492,7 @@ h2 {
 .matchup-cards {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--spacing-lg);
 }
 
 .matchup-card {
@@ -471,7 +502,7 @@ h2 {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--spacing-lg);
   color: white;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -481,60 +512,58 @@ h2 {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
-.opponent-name {
-  font-size: 16px;
+.card-name {
+  font-size: 18px;
   font-weight: 600;
-  flex: 1;
-  color: inherit;
+  color: white;
   text-decoration: none;
   transition: color 0.2s ease;
+  white-space: normal;
+  word-wrap: break-word;
+  min-width: 150px;
 }
 
-.opponent-name:hover {
-  color: #60a5fa;
-  text-decoration: underline;
+.card-name:hover {
+  color: var(--clr-primary-a50);
 }
 
-.matchup-stats {
+.card-stats {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-lg);
-  margin-left: var(--spacing-lg);
+  gap: var(--spacing-xl);
+  margin-left: auto;
 }
 
-.stat-badge {
+.stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  min-width: 50px;
 }
 
-.stat-badge.wins {
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.stat-wins {
   color: #4ade80;
 }
 
-.stat-badge.losses {
+.stat-losses {
   color: #f87171;
 }
 
-.stat-badge .label {
-  font-size: 11px;
-  font-weight: 600;
-  opacity: 0.7;
-  text-transform: uppercase;
-}
-
-.stat-badge .value {
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.winrate {
-  font-size: 12px;
+.stat-winpct {
   color: #60a5fa;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 .all-matchups-section {
@@ -565,13 +594,35 @@ h2 {
     gap: var(--spacing-md);
   }
 
-  .opponent-name {
+  .card-name {
     width: 100%;
   }
 
-  .matchup-stats {
-    width: 100%;
+  .card-stats {
     margin-left: 0;
+    width: 100%;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+  }
+
+  .stat-item {
+    flex: 1;
+    min-width: calc(33.333% - var(--spacing-md));
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    padding: var(--spacing-md);
+    border-radius: 4px;
+  }
+
+  .stat-item:nth-child(4) {
+    flex-basis: 100%;
+    min-width: unset;
+  }
+
+  .stat-label {
+    margin-bottom: 0;
   }
 }
 </style>
