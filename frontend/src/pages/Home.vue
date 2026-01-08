@@ -58,7 +58,7 @@ import { useAuth } from '@/composables/useAuth'
 interface Team { id?: number; name: string }
 interface Player { id?: number; name: string }
 interface Season { id?: number; year: number }
-interface Match { id?: number; season_id: number; team_a_id: number; team_b_id: number; winner_id?: number; score?: string }
+interface Match { id?: number; season_id: number; match_type: string; participant_a_id: number; participant_b_id: number; winner_id?: number; score?: string }
 
 const api = API_URL
 const { getAuthHeaders } = useAuth()

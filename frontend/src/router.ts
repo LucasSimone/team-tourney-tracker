@@ -10,6 +10,7 @@ import AdminBackup from './pages/admin/Backup.vue'
 import Track from './pages/Track.vue'
 import Standings from './pages/Standings.vue'
 import Games from './pages/Games.vue'
+import Players from './pages/Players.vue'
 import LiveScore from './pages/LiveScore.vue'
 import TeamDetail from './pages/TeamDetail.vue'
 import PlayerDetail from './pages/PlayerDetail.vue'
@@ -50,6 +51,12 @@ const routes = [
     path: '/games',
     name: 'Games',
     component: Games,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/players',
+    name: 'Players',
+    component: Players,
     meta: { requiresAuth: false }
   },
   {

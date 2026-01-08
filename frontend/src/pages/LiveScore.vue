@@ -1,8 +1,17 @@
 <template>
   <div class="live-score-container">
+    <!-- Header with Selectors -->
+    <div v-if="!reviewMode" class="header-selectors">
+      <select v-model="matchType" class="type-select">
+        <option value="team">Team</option>
+        <option value="single">Single</option>
+      </select>
+    </div>
+
     <!-- Step 1: Score Entry -->
     <div v-if="!reviewMode" class="step-1">
-      <div class="teams-row">
+      <!-- Team Match -->
+      <div v-if="matchType === 'team'" class="teams-row">
         <!-- Team A Card -->
         <div class="team-card" @click="showTeamModal('a')">
           <div v-if="teamA" class="team-selected">
@@ -39,8 +48,46 @@
         </div>
       </div>
 
+      <!-- Single Match -->
+      <div v-else class="teams-row">
+        <!-- Player A Card -->
+        <div class="team-card" @click="showPlayerModal('a')">
+          <div v-if="playerA" class="team-selected">
+            <h2>{{ playerA.name }}</h2>
+            <div class="score-display" :class="getScoreClass('a')">{{ scoreA }}</div>
+            <div class="score-controls">
+              <button @click.stop="decreaseScore('a')" class="score-btn minus">−</button>
+              <button @click.stop="increaseScore('a')" class="score-btn plus">+</button>
+            </div>
+          </div>
+          <div v-else class="team-placeholder">
+            <p>Click to select Player A</p>
+          </div>
+        </div>
+
+        <!-- VS Separator -->
+        <div class="vs-separator">
+          <span>VS</span>
+        </div>
+
+        <!-- Player B Card -->
+        <div class="team-card" @click="showPlayerModal('b')">
+          <div v-if="playerB" class="team-selected">
+            <h2>{{ playerB.name }}</h2>
+            <div class="score-display" :class="getScoreClass('b')">{{ scoreB }}</div>
+            <div class="score-controls">
+              <button @click.stop="decreaseScore('b')" class="score-btn minus">−</button>
+              <button @click.stop="increaseScore('b')" class="score-btn plus">+</button>
+            </div>
+          </div>
+          <div v-else class="team-placeholder">
+            <p>Click to select Player B</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Submit Button -->
-      <div v-if="teamA && teamB" class="submit-section">
+      <div v-if="(matchType === 'team' && teamA && teamB) || (matchType === 'single' && playerA && playerB)" class="submit-section">
         <button @click="proceedToReview" class="submit-btn" :disabled="isSubmitting">
           {{ isSubmitting ? 'Processing...' : 'Next' }}
         </button>
@@ -55,18 +102,18 @@
         <div class="review-content">
           <div class="review-matchup">
             <div class="team-info">
-              <div class="team-name">{{ teamA?.name }}</div>
+              <div class="team-name">{{ matchType === 'team' ? teamA?.name : playerA?.name }}</div>
               <div class="team-score" :class="getScoreClass('a')">{{ scoreA }}</div>
             </div>
             <div class="vs-text">vs</div>
             <div class="team-info">
-              <div class="team-name">{{ teamB?.name }}</div>
+              <div class="team-name">{{ matchType === 'team' ? teamB?.name : playerB?.name }}</div>
               <div class="team-score" :class="getScoreClass('b')">{{ scoreB }}</div>
             </div>
           </div>
 
           <div v-if="autoWinner" class="winner-display">
-            <p>🏆 {{ getTeamName(autoWinner) }} wins</p>
+            <p>🏆 {{ getWinnerName(autoWinner) }} wins</p>
           </div>
         </div>
 
@@ -83,26 +130,26 @@
       </div>
     </div>
 
-    <!-- Team Selection Modal -->
+    <!-- Team/Player Selection Modal -->
     <div v-if="showModal" class="modal-overlay" @click="closeModal">
       <div class="modal-content" @click.stop>
-        <h2>Select {{ selectedTeamSlot === 'a' ? 'Team A' : 'Team B' }}</h2>
+        <h2>{{ modalType === 'team' ? `Select ${selectedTeamSlot === 'a' ? 'Team A' : 'Team B'}` : `Select ${selectedTeamSlot === 'a' ? 'Player A' : 'Player B'}` }}</h2>
         
         <input 
           v-model="searchQuery" 
           type="text" 
-          placeholder="Search teams..."
+          :placeholder="`Search ${modalType === 'team' ? 'teams' : 'players'}...`"
           class="search-input"
         />
         
         <div class="teams-list">
           <div 
-            v-for="team in filteredTeams" 
-            :key="team.id"
+            v-for="item in (modalType === 'team' ? filteredTeams : filteredPlayers)" 
+            :key="item.id"
             class="team-option"
-            @click="selectTeam(team)"
+            @click="selectItem(item)"
           >
-            {{ team.name }}
+            {{ item.name }}
           </div>
         </div>
         
@@ -128,11 +175,17 @@ interface Team {
   name: string
 }
 
+interface Player {
+  id: number
+  name: string
+}
+
 interface Match {
   season_id: number
-  team_a_id: number
+  match_type: string
+  participant_a_id?: number
+  participant_b_id?: number
   score_a: number
-  team_b_id: number
   score_b: number
   winner_id: number
 }
@@ -142,14 +195,20 @@ const router = useRouter()
 // Auth
 const { token } = useAuth()
 
-// Teams
+// Teams and Players
 const teams = ref<Team[]>([])
+const players = ref<Player[]>([])
 const teamA = ref<Team | null>(null)
 const teamB = ref<Team | null>(null)
+const playerA = ref<Player | null>(null)
+const playerB = ref<Player | null>(null)
 
 // Scores
 const scoreA = ref(0)
 const scoreB = ref(0)
+
+// Match Type
+const matchType = ref<'team' | 'single'>('team')
 
 // Season
 const currentSeasonId = ref<number | null>(null)
@@ -157,6 +216,7 @@ const currentSeasonId = ref<number | null>(null)
 // Modal
 const showModal = ref(false)
 const selectedTeamSlot = ref<'a' | 'b'>('a')
+const modalType = ref<'team' | 'player'>('team')
 const searchQuery = ref('')
 
 // Team players mapping
@@ -200,17 +260,36 @@ const filteredTeams = computed(() => {
   })
 })
 
+const filteredPlayers = computed(() => {
+  return players.value.filter(player => {
+    const query = searchQuery.value.toLowerCase()
+    const matchesSearch = player.name.toLowerCase().includes(query)
+    const isNotSelectedPlayer = player.id !== playerA.value?.id && player.id !== playerB.value?.id
+    return matchesSearch && isNotSelectedPlayer
+  })
+})
+
 const fetchTeams = async () => {
   try {
     const response = await fetch(`${API_URL}/teams`)
     const data = await response.json()
     teams.value = data || []
-    // Fetch players for each team
+    // Populate teamPlayers from the team objects (now includes players)
     for (const team of teams.value) {
-      await fetchTeamPlayers(team.id)
+      teamPlayers.value[team.id] = team.players || []
     }
   } catch (error) {
     console.error('Failed to fetch teams:', error)
+  }
+}
+
+const fetchPlayers = async () => {
+  try {
+    const response = await fetch(`${API_URL}/players`)
+    const data = await response.json()
+    players.value = data || []
+  } catch (error) {
+    console.error('Failed to fetch players:', error)
   }
 }
 
@@ -231,8 +310,17 @@ const fetchCurrentSeason = async () => {
     const response = await fetch(`${API_URL}/seasons`)
     const data = await response.json()
     if (data && data.length > 0) {
-      // Get the most recent season (assuming they're ordered by year)
-      currentSeasonId.value = data[data.length - 1].id
+      // Get the current year
+      const currentYear = new Date().getFullYear()
+      // Find the season matching the current year
+      const currentSeason = data.find((season: any) => season.year === currentYear)
+      if (currentSeason) {
+        currentSeasonId.value = currentSeason.id
+      } else {
+        // If current year season doesn't exist, fall back to the most recent season
+        currentSeasonId.value = data[data.length - 1].id
+        console.warn(`No season found for year ${currentYear}, using most recent season`)
+      }
     }
   } catch (error) {
     console.error('Failed to fetch seasons:', error)
@@ -241,15 +329,33 @@ const fetchCurrentSeason = async () => {
 
 const showTeamModal = (slot: 'a' | 'b') => {
   selectedTeamSlot.value = slot
+  modalType.value = 'team'
   searchQuery.value = ''
   showModal.value = true
 }
 
-const selectTeam = (team: Team) => {
-  if (selectedTeamSlot.value === 'a') {
-    teamA.value = team
+const showPlayerModal = (slot: 'a' | 'b') => {
+  selectedTeamSlot.value = slot
+  modalType.value = 'player'
+  searchQuery.value = ''
+  showModal.value = true
+}
+
+const selectItem = (item: Team | Player) => {
+  if (modalType.value === 'team') {
+    const team = item as Team
+    if (selectedTeamSlot.value === 'a') {
+      teamA.value = team
+    } else {
+      teamB.value = team
+    }
   } else {
-    teamB.value = team
+    const player = item as Player
+    if (selectedTeamSlot.value === 'a') {
+      playerA.value = player
+    } else {
+      playerB.value = player
+    }
   }
   showModal.value = false
   scoreA.value = 0
@@ -293,28 +399,45 @@ const getScoreClass = (team: 'a' | 'b'): string => {
 }
 
 const getTeamName = (id: number): string => {
-  if (id === teamA.value?.id) return teamA.value.name
-  if (id === teamB.value?.id) return teamB.value.name
-  return 'Unknown Team'
+  return teams.value.find(t => t.id === id)?.name || 'Unknown Team'
+}
+
+const getPlayerName = (id: number): string => {
+  return players.value.find(p => p.id === id)?.name || 'Unknown Player'
+}
+
+const getWinnerName = (id: number): string => {
+  if (matchType.value === 'team') {
+    return getTeamName(id)
+  } else {
+    return getPlayerName(id)
+  }
 }
 
 const proceedToReview = () => {
-  if (!teamA.value || !teamB.value) {
-    showMessage('Please select both teams', 'error')
-    return
+  if (matchType.value === 'team') {
+    if (!teamA.value || !teamB.value) {
+      showMessage('Please select both teams', 'error')
+      return
+    }
+  } else {
+    if (!playerA.value || !playerB.value) {
+      showMessage('Please select both players', 'error')
+      return
+    }
   }
 
   // Prevent 0-0 scores
   if (scoreA.value === 0 && scoreB.value === 0) {
-    showMessage('Scores cannot be 0-0. At least one team must score.', 'error')
+    showMessage('Scores cannot be 0-0. At least one must score.', 'error')
     return
   }
 
   // Auto-determine winner from scores
   if (scoreA.value > scoreB.value) {
-    autoWinner.value = teamA.value.id
+    autoWinner.value = matchType.value === 'team' ? teamA.value!.id : playerA.value!.id
   } else if (scoreB.value > scoreA.value) {
-    autoWinner.value = teamB.value.id
+    autoWinner.value = matchType.value === 'team' ? teamB.value!.id : playerB.value!.id
   } else {
     // Tie - set to null, backend will handle
     autoWinner.value = null
@@ -328,9 +451,16 @@ const showMessage = (text: string, type: 'success' | 'error') => {
 }
 
 const submitMatch = async () => {
-  if (!teamA.value || !teamB.value) {
-    showMessage('Please select both teams', 'error')
-    return
+  if (matchType.value === 'team') {
+    if (!teamA.value || !teamB.value) {
+      showMessage('Please select both teams', 'error')
+      return
+    }
+  } else {
+    if (!playerA.value || !playerB.value) {
+      showMessage('Please select both players', 'error')
+      return
+    }
   }
 
   if (!currentSeasonId.value) {
@@ -344,13 +474,20 @@ const submitMatch = async () => {
     // Use the winner determined in review mode
     let winnerId: number | null = autoWinner.value
 
-    const match: Match = {
+    const match: any = {
       season_id: currentSeasonId.value,
-      team_a_id: teamA.value.id,
+      match_type: matchType.value,
       score_a: scoreA.value,
-      team_b_id: teamB.value.id,
       score_b: scoreB.value,
       winner_id: winnerId || 0
+    }
+
+    if (matchType.value === 'team') {
+      match.participant_a_id = teamA.value!.id
+      match.participant_b_id = teamB.value!.id
+    } else {
+      match.participant_a_id = playerA.value!.id
+      match.participant_b_id = playerB.value!.id
     }
 
     const response = await fetch(`${API_URL}/matches`, {
@@ -367,6 +504,8 @@ const submitMatch = async () => {
       // Reset form
       teamA.value = null
       teamB.value = null
+      playerA.value = null
+      playerB.value = null
       scoreA.value = 0
       scoreB.value = 0
       autoWinner.value = null
@@ -387,6 +526,7 @@ const submitMatch = async () => {
 
 onMounted(() => {
   fetchTeams()
+  fetchPlayers()
   fetchCurrentSeason()
 })
 </script>
@@ -395,6 +535,31 @@ onMounted(() => {
 .live-score-container {
   max-width: 900px;
   margin: 0 auto;
+}
+
+/* Header Selectors */
+.header-selectors {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  justify-content: flex-end;
+}
+
+.type-select {
+  background-color: #0f3460;
+  color: #ffffff;
+  border: 1px solid #5b18c7;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.type-select:hover,
+.type-select:focus {
+  outline: none;
+  border-color: #7237ce;
 }
 
 /* Step 1: Team Cards */

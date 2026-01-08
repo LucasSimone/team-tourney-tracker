@@ -13,6 +13,7 @@
       <nav class="nav-menu" :class="{ active: menuOpen }">
         <div class="nav-public">
           <router-link to="/standings" @click="menuOpen = false">Standings</router-link>
+          <router-link to="/players" @click="menuOpen = false">Players</router-link>
           <router-link to="/games" @click="menuOpen = false">Games</router-link>
           <router-link to="/seasons" @click="menuOpen = false">Seasons</router-link>
         </div>
@@ -83,6 +84,7 @@ const pageTitle = computed(() => {
     'TeamDetail': detailPageTitle.value,
     'PlayerDetail': detailPageTitle.value,
     'Games': 'Games',
+    'Players': 'Players',
     'PublicSeasons': 'Seasons',
     'Track': 'Track Match',
     'LiveScore': 'Live Score',

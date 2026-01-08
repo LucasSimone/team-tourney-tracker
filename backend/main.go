@@ -16,6 +16,12 @@ type Team struct {
 	Name string `json:"name"`
 }
 
+type TeamWithPlayers struct {
+	ID      int    `json:"id"`
+	Name    string `json:"name"`
+	Players []int  `json:"players"`
+}
+
 type Player struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
@@ -36,14 +42,15 @@ type Season struct {
 }
 
 type Match struct {
-	ID        int    `json:"id"`
-	SeasonID  int    `json:"season_id"`
-	TeamAID   int    `json:"team_a_id"`
-	TeamBID   int    `json:"team_b_id"`
-	ScoreA    int    `json:"score_a"`
-	ScoreB    int    `json:"score_b"`
-	WinnerID  int    `json:"winner_id"`
-	CreatedAt string `json:"created_at"`
+	ID             int    `json:"id"`
+	SeasonID       int    `json:"season_id"`
+	MatchType      string `json:"match_type"`
+	ParticipantAID int    `json:"participant_a_id"`
+	ParticipantBID int    `json:"participant_b_id"`
+	ScoreA         int    `json:"score_a"`
+	ScoreB         int    `json:"score_b"`
+	WinnerID       int    `json:"winner_id"`
+	CreatedAt      string `json:"created_at"`
 }
 
 type User struct {
@@ -141,15 +148,14 @@ func initDB() {
 	CREATE TABLE IF NOT EXISTS matches (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		season_id INTEGER,
-		team_a_id INTEGER,
-		team_b_id INTEGER,
+		match_type TEXT DEFAULT 'team',
+		participant_a_id INTEGER,
+		participant_b_id INTEGER,
 		score_a INTEGER,
 		score_b INTEGER,
 		winner_id INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY(season_id) REFERENCES seasons(id),
-		FOREIGN KEY(team_a_id) REFERENCES teams(id),
-		FOREIGN KEY(team_b_id) REFERENCES teams(id),
 		FOREIGN KEY(winner_id) REFERENCES teams(id)
 	);
 	CREATE TABLE IF NOT EXISTS players (
@@ -206,20 +212,67 @@ func teamsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			json.NewEncoder(w).Encode(t)
 		} else {
-			// Get all teams
-			rows, err := db.Query("SELECT id, name FROM teams")
+			// Get all teams with their players, sorted by games played (most to least)
+			rows, err := db.Query(`
+				SELECT t.id, t.name
+				FROM teams t
+				LEFT JOIN (
+					SELECT 
+						CASE 
+							WHEN match_type = 'team' THEN participant_a_id
+						END as team_id
+					FROM matches
+					WHERE match_type = 'team'
+					UNION ALL
+					SELECT 
+						CASE 
+							WHEN match_type = 'team' THEN participant_b_id
+						END as team_id
+					FROM matches
+					WHERE match_type = 'team'
+				) m ON t.id = m.team_id
+				GROUP BY t.id, t.name
+				ORDER BY COUNT(m.team_id) DESC, t.name ASC
+			`)
 			if err != nil {
 				w.WriteHeader(500)
 				return
 			}
-			var teams []Team
+			defer rows.Close()
+
+			var teams []TeamWithPlayers
 			for rows.Next() {
-				var t Team
+				var t TeamWithPlayers
 				rows.Scan(&t.ID, &t.Name)
+
+				// Get players for this team
+				playerRows, err := db.Query(`
+					SELECT p.id FROM players p
+					JOIN team_players tp ON p.id = tp.player_id
+					WHERE tp.team_id = ?
+					ORDER BY p.id
+				`, t.ID)
+				if err != nil {
+					continue
+				}
+				defer playerRows.Close()
+
+				var playerIDs []int
+				for playerRows.Next() {
+					var pid int
+					playerRows.Scan(&pid)
+					playerIDs = append(playerIDs, pid)
+				}
+				playerRows.Close()
+
+				t.Players = playerIDs
+				if t.Players == nil {
+					t.Players = []int{}
+				}
 				teams = append(teams, t)
 			}
 			if teams == nil {
-				teams = []Team{}
+				teams = []TeamWithPlayers{}
 			}
 			json.NewEncoder(w).Encode(teams)
 		}
@@ -234,13 +287,22 @@ func teamsHandler(w http.ResponseWriter, r *http.Request) {
 			Players []int  `json:"players"`
 		}
 		err := json.NewDecoder(r.Body).Decode(&payload)
-		if err != nil {
-			w.WriteHeader(400)
+		if err != nil || payload.Name == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request - name is required"})
+			return
+		}
+		// Trim and validate name
+		payload.Name = strings.TrimSpace(payload.Name)
+		if len(payload.Name) == 0 || len(payload.Name) > 255 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Team name must be 1-255 characters"})
 			return
 		}
 		res, err := db.Exec("INSERT INTO teams (name) VALUES (?)", payload.Name)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Team name already exists"})
 			return
 		}
 		teamID, _ := res.LastInsertId()
@@ -264,12 +326,21 @@ func teamsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		err := json.NewDecoder(r.Body).Decode(&payload)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+		// Trim and validate name
+		payload.Name = strings.TrimSpace(payload.Name)
+		if len(payload.Name) == 0 || len(payload.Name) > 255 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Team name must be 1-255 characters"})
 			return
 		}
 		_, err = db.Exec("UPDATE teams SET name = ? WHERE id = ?", payload.Name, id)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update team"})
 			return
 		}
 		// Update team_players: first delete all existing, then add new ones
@@ -339,6 +410,76 @@ func handleTeamPlayers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(players)
 }
 
+// generateDoublesPairs creates doubles pair teams for all combinations of players
+func generateDoublesPairs(newPlayerID int) error {
+	// Get all players
+	rows, err := db.Query("SELECT id, name FROM players ORDER BY id")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var players []Player
+	for rows.Next() {
+		var p Player
+		rows.Scan(&p.ID, &p.Name)
+		players = append(players, p)
+	}
+
+	// Generate pairs with the new player
+	for i := 0; i < len(players); i++ {
+		if players[i].ID == newPlayerID {
+			continue // Skip pairing with itself
+		}
+
+		// Create team name (alphabetically sorted for consistency - prevents duplicates like "A & B" and "B & A")
+		var team1, team2 string
+		player1ID := players[i].ID
+		player2ID := newPlayerID
+
+		// Ensure team name is always created in the same order
+		if player1ID < player2ID {
+			team1 = players[i].Name
+			team2 = getPlayerName(newPlayerID)
+		} else {
+			team1 = getPlayerName(newPlayerID)
+			team2 = players[i].Name
+		}
+		teamName := team1 + " & " + team2
+
+		// Check if team already exists
+		var existingID int
+		err := db.QueryRow("SELECT id FROM teams WHERE name = ?", teamName).Scan(&existingID)
+		if err == sql.ErrNoRows {
+			// Team doesn't exist, create it
+			res, err := db.Exec("INSERT INTO teams (name) VALUES (?)", teamName)
+			if err != nil {
+				log.Printf("Error creating doubles pair team: %v", err)
+				continue
+			}
+			teamID, _ := res.LastInsertId()
+
+			// Add both players to the team in consistent order
+			minID := player1ID
+			maxID := player2ID
+			if minID > maxID {
+				minID, maxID = maxID, minID
+			}
+
+			db.Exec("INSERT OR IGNORE INTO team_players (team_id, player_id) VALUES (?, ?)", teamID, minID)
+			db.Exec("INSERT OR IGNORE INTO team_players (team_id, player_id) VALUES (?, ?)", teamID, maxID)
+		}
+	}
+	return nil
+}
+
+// getPlayerName returns the name of a player by ID
+func getPlayerName(playerID int) string {
+	var name string
+	db.QueryRow("SELECT name FROM players WHERE id = ?", playerID).Scan(&name)
+	return name
+}
+
 // Handler for /players
 func playersHandler(w http.ResponseWriter, r *http.Request) {
 	// Set CORS headers
@@ -387,12 +528,33 @@ func playersHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var p Player
-		json.NewDecoder(r.Body).Decode(&p)
-		_, err := db.Exec("INSERT INTO players (name) VALUES (?)", p.Name)
-		if err != nil {
-			w.WriteHeader(400)
+		err := json.NewDecoder(r.Body).Decode(&p)
+		if err != nil || p.Name == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request - name is required"})
 			return
 		}
+		// Trim and validate name
+		p.Name = strings.TrimSpace(p.Name)
+		if len(p.Name) == 0 || len(p.Name) > 255 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Player name must be 1-255 characters"})
+			return
+		}
+		res, err := db.Exec("INSERT INTO players (name) VALUES (?)", p.Name)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Player name already exists"})
+			return
+		}
+		// Get the inserted player ID
+		playerID, _ := res.LastInsertId()
+
+		// Generate doubles pairs for the new player
+		if err := generateDoublesPairs(int(playerID)); err != nil {
+			log.Printf("Error generating doubles pairs: %v", err)
+		}
+
 		w.WriteHeader(201)
 	case "PUT":
 		// Require admin authentication to update players
@@ -405,13 +567,22 @@ func playersHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		var p Player
 		err := json.NewDecoder(r.Body).Decode(&p)
-		if err != nil {
-			w.WriteHeader(400)
+		if err != nil || p.Name == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request - name is required"})
+			return
+		}
+		// Trim and validate name
+		p.Name = strings.TrimSpace(p.Name)
+		if len(p.Name) == 0 || len(p.Name) > 255 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Player name must be 1-255 characters"})
 			return
 		}
 		_, err = db.Exec("UPDATE players SET name = ? WHERE id = ?", p.Name, id)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update player"})
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -457,9 +628,8 @@ func playerStatsHandler(w http.ResponseWriter, r *http.Request) {
 	var rows *sql.Rows
 	var err error
 
-	// Build query to get player stats
-	// For each player, count how many matches they participated in (as a member of team_a or team_b)
-	// and count wins/losses
+	// Build query to get player stats - include both team matches (via teams) and singles matches
+	// Use UNION to avoid duplicate counting from LEFT JOINs
 	if seasonID == "0" {
 		// All seasons
 		rows, err = db.Query(`
@@ -467,13 +637,23 @@ func playerStatsHandler(w http.ResponseWriter, r *http.Request) {
 				p.id,
 				p.name,
 				COUNT(DISTINCT m.id) as games_played,
-				SUM(CASE WHEN m.winner_id = tp.team_id THEN 1 ELSE 0 END) as wins,
-				COUNT(DISTINCT m.id) - SUM(CASE WHEN m.winner_id = tp.team_id THEN 1 ELSE 0 END) as losses
+				COALESCE(SUM(CASE WHEN m.winner_id = p.id AND m.match_type = 'single' THEN 1 
+						 WHEN m.winner_id IN (SELECT team_id FROM team_players WHERE player_id = p.id) AND m.match_type = 'team' THEN 1
+						 ELSE 0 END), 0) as wins,
+				COALESCE(COUNT(DISTINCT m.id), 0) - COALESCE(SUM(CASE WHEN m.winner_id = p.id AND m.match_type = 'single' THEN 1 
+													 WHEN m.winner_id IN (SELECT team_id FROM team_players WHERE player_id = p.id) AND m.match_type = 'team' THEN 1
+													 ELSE 0 END), 0) as losses
 			FROM players p
-			JOIN team_players tp ON p.id = tp.player_id
-			JOIN matches m ON (m.team_a_id = tp.team_id OR m.team_b_id = tp.team_id)
+			LEFT JOIN matches m ON (
+				(m.participant_a_id = p.id OR m.participant_b_id = p.id) AND m.match_type = 'single'
+			) OR (
+				m.match_type = 'team' AND (
+					m.participant_a_id IN (SELECT team_id FROM team_players WHERE player_id = p.id) OR
+					m.participant_b_id IN (SELECT team_id FROM team_players WHERE player_id = p.id)
+				)
+			)
 			GROUP BY p.id, p.name
-			ORDER BY wins DESC
+			ORDER BY wins DESC, p.name ASC
 		`)
 	} else {
 		// Specific season
@@ -482,14 +662,24 @@ func playerStatsHandler(w http.ResponseWriter, r *http.Request) {
 				p.id,
 				p.name,
 				COUNT(DISTINCT m.id) as games_played,
-				SUM(CASE WHEN m.winner_id = tp.team_id THEN 1 ELSE 0 END) as wins,
-				COUNT(DISTINCT m.id) - SUM(CASE WHEN m.winner_id = tp.team_id THEN 1 ELSE 0 END) as losses
+				COALESCE(SUM(CASE WHEN m.winner_id = p.id AND m.match_type = 'single' THEN 1 
+						 WHEN m.winner_id IN (SELECT team_id FROM team_players WHERE player_id = p.id) AND m.match_type = 'team' THEN 1
+						 ELSE 0 END), 0) as wins,
+				COALESCE(COUNT(DISTINCT m.id), 0) - COALESCE(SUM(CASE WHEN m.winner_id = p.id AND m.match_type = 'single' THEN 1 
+													 WHEN m.winner_id IN (SELECT team_id FROM team_players WHERE player_id = p.id) AND m.match_type = 'team' THEN 1
+													 ELSE 0 END), 0) as losses
 			FROM players p
-			JOIN team_players tp ON p.id = tp.player_id
-			JOIN matches m ON (m.team_a_id = tp.team_id OR m.team_b_id = tp.team_id)
-			WHERE m.season_id = ?
+			LEFT JOIN matches m ON (
+				(m.participant_a_id = p.id OR m.participant_b_id = p.id) AND m.match_type = 'single'
+			) OR (
+				m.match_type = 'team' AND (
+					m.participant_a_id IN (SELECT team_id FROM team_players WHERE player_id = p.id) OR
+					m.participant_b_id IN (SELECT team_id FROM team_players WHERE player_id = p.id)
+				)
+			)
+			WHERE m.id IS NULL OR m.season_id = ?
 			GROUP BY p.id, p.name
-			ORDER BY wins DESC
+			ORDER BY wins DESC, p.name ASC
 		`, seasonID)
 	}
 
@@ -574,10 +764,22 @@ func seasonsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var s Season
-		json.NewDecoder(r.Body).Decode(&s)
-		_, err := db.Exec("INSERT INTO seasons (year) VALUES (?)", s.Year)
+		err := json.NewDecoder(r.Body).Decode(&s)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+		// Validate season year is reasonable (1900-2100)
+		if s.Year < 1900 || s.Year > 2100 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Season year must be between 1900 and 2100"})
+			return
+		}
+		_, err = db.Exec("INSERT INTO seasons (year) VALUES (?)", s.Year)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Season year already exists"})
 			return
 		}
 		w.WriteHeader(201)
@@ -593,12 +795,20 @@ func seasonsHandler(w http.ResponseWriter, r *http.Request) {
 		var s Season
 		err := json.NewDecoder(r.Body).Decode(&s)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+		// Validate season year is reasonable (1900-2100)
+		if s.Year < 1900 || s.Year > 2100 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Season year must be between 1900 and 2100"})
 			return
 		}
 		_, err = db.Exec("UPDATE seasons SET year = ? WHERE id = ?", s.Year, id)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update season"})
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -638,8 +848,8 @@ func matchesHandler(w http.ResponseWriter, r *http.Request) {
 		if hasID {
 			// Get specific match
 			var m Match
-			err := db.QueryRow("SELECT id, season_id, team_a_id, team_b_id, score_a, score_b, winner_id, created_at FROM matches WHERE id = ?", id).
-				Scan(&m.ID, &m.SeasonID, &m.TeamAID, &m.TeamBID, &m.ScoreA, &m.ScoreB, &m.WinnerID, &m.CreatedAt)
+			err := db.QueryRow("SELECT id, season_id, match_type, participant_a_id, participant_b_id, score_a, score_b, winner_id, created_at FROM matches WHERE id = ?", id).
+				Scan(&m.ID, &m.SeasonID, &m.MatchType, &m.ParticipantAID, &m.ParticipantBID, &m.ScoreA, &m.ScoreB, &m.WinnerID, &m.CreatedAt)
 			if err != nil {
 				w.WriteHeader(http.StatusNotFound)
 				return
@@ -647,7 +857,7 @@ func matchesHandler(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(m)
 		} else {
 			// Get all matches
-			rows, err := db.Query("SELECT id, season_id, team_a_id, team_b_id, score_a, score_b, winner_id, created_at FROM matches")
+			rows, err := db.Query("SELECT id, season_id, match_type, participant_a_id, participant_b_id, score_a, score_b, winner_id, created_at FROM matches")
 			if err != nil {
 				w.WriteHeader(500)
 				return
@@ -655,7 +865,7 @@ func matchesHandler(w http.ResponseWriter, r *http.Request) {
 			var matches []Match
 			for rows.Next() {
 				var m Match
-				rows.Scan(&m.ID, &m.SeasonID, &m.TeamAID, &m.TeamBID, &m.ScoreA, &m.ScoreB, &m.WinnerID, &m.CreatedAt)
+				rows.Scan(&m.ID, &m.SeasonID, &m.MatchType, &m.ParticipantAID, &m.ParticipantBID, &m.ScoreA, &m.ScoreB, &m.WinnerID, &m.CreatedAt)
 				matches = append(matches, m)
 			}
 			if matches == nil {
@@ -669,15 +879,61 @@ func matchesHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var m Match
-		json.NewDecoder(r.Body).Decode(&m)
+		err := json.NewDecoder(r.Body).Decode(&m)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+			return
+		}
+
+		// Validate required fields
+		if m.SeasonID == 0 || m.ParticipantAID == 0 || m.ParticipantBID == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields: season_id, participant_a_id, participant_b_id"})
+			return
+		}
+
+		// Validate match type
+		if m.MatchType == "" {
+			m.MatchType = "team"
+		}
+		if m.MatchType != "team" && m.MatchType != "single" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid match_type: must be 'team' or 'single'"})
+			return
+		}
+
+		// Validate participants are different
+		if m.ParticipantAID == m.ParticipantBID {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Participant A and B must be different"})
+			return
+		}
+
+		// Validate scores are non-negative
+		if m.ScoreA < 0 || m.ScoreB < 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Scores cannot be negative"})
+			return
+		}
+
+		// If winner is specified, validate it matches one of the participants
+		if m.WinnerID != 0 && m.WinnerID != m.ParticipantAID && m.WinnerID != m.ParticipantBID {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Winner must be one of the participants"})
+			return
+		}
+
 		var createdAt interface{} = nil
 		if m.CreatedAt != "" {
 			createdAt = m.CreatedAt
 		}
-		_, err := db.Exec("INSERT INTO matches (season_id, team_a_id, team_b_id, score_a, score_b, winner_id, created_at) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))",
-			m.SeasonID, m.TeamAID, m.TeamBID, m.ScoreA, m.ScoreB, m.WinnerID, createdAt)
+
+		_, err = db.Exec("INSERT INTO matches (season_id, match_type, participant_a_id, participant_b_id, score_a, score_b, winner_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))",
+			m.SeasonID, m.MatchType, m.ParticipantAID, m.ParticipantBID, m.ScoreA, m.ScoreB, m.WinnerID, createdAt)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create match"})
 			return
 		}
 		w.WriteHeader(201)
@@ -693,13 +949,51 @@ func matchesHandler(w http.ResponseWriter, r *http.Request) {
 		var m Match
 		err := json.NewDecoder(r.Body).Decode(&m)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
 			return
 		}
-		_, err = db.Exec("UPDATE matches SET season_id = ?, team_a_id = ?, team_b_id = ?, score_a = ?, score_b = ?, winner_id = ?, created_at = ? WHERE id = ?",
-			m.SeasonID, m.TeamAID, m.TeamBID, m.ScoreA, m.ScoreB, m.WinnerID, m.CreatedAt, id)
+
+		// Validate required fields
+		if m.SeasonID == 0 || m.ParticipantAID == 0 || m.ParticipantBID == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields: season_id, participant_a_id, participant_b_id"})
+			return
+		}
+
+		// Validate match type
+		if m.MatchType != "team" && m.MatchType != "single" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid match_type: must be 'team' or 'single'"})
+			return
+		}
+
+		// Validate participants are different
+		if m.ParticipantAID == m.ParticipantBID {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Participant A and B must be different"})
+			return
+		}
+
+		// Validate scores are non-negative
+		if m.ScoreA < 0 || m.ScoreB < 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Scores cannot be negative"})
+			return
+		}
+
+		// If winner is specified, validate it matches one of the participants
+		if m.WinnerID != 0 && m.WinnerID != m.ParticipantAID && m.WinnerID != m.ParticipantBID {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Winner must be one of the participants"})
+			return
+		}
+
+		_, err = db.Exec("UPDATE matches SET season_id = ?, match_type = ?, participant_a_id = ?, participant_b_id = ?, score_a = ?, score_b = ?, winner_id = ?, created_at = ? WHERE id = ?",
+			m.SeasonID, m.MatchType, m.ParticipantAID, m.ParticipantBID, m.ScoreA, m.ScoreB, m.WinnerID, m.CreatedAt, id)
 		if err != nil {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update match"})
 			return
 		}
 		w.WriteHeader(http.StatusOK)

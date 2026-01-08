@@ -37,9 +37,11 @@
 
       <div class="teams-section">
         <h2>Teams</h2>
-        <div class="team-cards">
+        <div class="teams-grid">
           <div v-for="team in playerTeams" :key="team.id" class="team-card">
-            <router-link :to="`/teams/${team.id}`" class="card-name">{{ team.name }}</router-link>
+            <div class="team-header">
+              <router-link :to="`/teams/${team.id}`" class="team-name">{{ team.name }}</router-link>
+            </div>
             <div class="card-stats">
               <div class="stat-item">
                 <span class="stat-label">GP</span>
@@ -164,8 +166,9 @@ interface Season { id?: number; year: number }
 interface Match {
   id?: number
   season_id: number
-  team_a_id: number
-  team_b_id: number
+  match_type: string
+  participant_a_id: number
+  participant_b_id: number
   winner_id?: number
 }
 interface TeamData {
@@ -235,22 +238,39 @@ const playerStats = computed(() => {
   // Create a Set to track matches we've already counted to avoid duplicates
   const countedMatches = new Set<number>()
 
-  // Count stats from matches where player's teams played
+  // Count stats from all matches (both team and singles)
   filteredMatches.value.forEach(match => {
     // Only count each match once
     if (countedMatches.has(match.id || 0)) {
       return
     }
 
-    const playerOnTeamA = playerTeamIds.includes(match.team_a_id)
-    const playerOnTeamB = playerTeamIds.includes(match.team_b_id)
+    let isPlayerInvolved = false
+    let isPlayerWinner = false
 
-    if (playerOnTeamA || playerOnTeamB) {
+    // Check if player is involved as a team member or individual
+    if (match.match_type === 'team') {
+      // Team match - check if player's team is participating
+      const playerOnTeamA = playerTeamIds.includes(match.participant_a_id)
+      const playerOnTeamB = playerTeamIds.includes(match.participant_b_id)
+
+      if (playerOnTeamA || playerOnTeamB) {
+        isPlayerInvolved = true
+        const playerTeamId = playerOnTeamA ? match.participant_a_id : match.participant_b_id
+        isPlayerWinner = match.winner_id === playerTeamId
+      }
+    } else if (match.match_type === 'single') {
+      // Singles match - check if player is one of the participants
+      if (match.participant_a_id === playerId.value || match.participant_b_id === playerId.value) {
+        isPlayerInvolved = true
+        isPlayerWinner = match.winner_id === playerId.value
+      }
+    }
+
+    if (isPlayerInvolved) {
       countedMatches.add(match.id || 0)
       gamesPlayed++
-
-      const playerTeamId = playerOnTeamA ? match.team_a_id : match.team_b_id
-      if (match.winner_id === playerTeamId) {
+      if (isPlayerWinner) {
         wins++
       } else {
         losses++
@@ -294,22 +314,27 @@ const playerTeams = computed(() => {
     }
   })
 
-  // Count stats per team
+  // Count stats per team (only team matches)
   filteredMatches.value.forEach(match => {
-    if (playerTeamIds.includes(match.team_a_id)) {
-      teamData[match.team_a_id].gamesPlayed++
-      if (match.winner_id === match.team_a_id) {
-        teamData[match.team_a_id].wins++
+    // Only count team matches for team stats
+    if (match.match_type !== 'team') {
+      return
+    }
+
+    if (playerTeamIds.includes(match.participant_a_id)) {
+      teamData[match.participant_a_id].gamesPlayed++
+      if (match.winner_id === match.participant_a_id) {
+        teamData[match.participant_a_id].wins++
       } else {
-        teamData[match.team_a_id].losses++
+        teamData[match.participant_a_id].losses++
       }
     }
-    if (playerTeamIds.includes(match.team_b_id)) {
-      teamData[match.team_b_id].gamesPlayed++
-      if (match.winner_id === match.team_b_id) {
-        teamData[match.team_b_id].wins++
+    if (playerTeamIds.includes(match.participant_b_id)) {
+      teamData[match.participant_b_id].gamesPlayed++
+      if (match.winner_id === match.participant_b_id) {
+        teamData[match.participant_b_id].wins++
       } else {
-        teamData[match.team_b_id].losses++
+        teamData[match.participant_b_id].losses++
       }
     }
   })
@@ -328,37 +353,54 @@ const playerTeams = computed(() => {
 const matchups = computed(() => {
   const matchupMap: Record<number, Matchup> = {}
 
-  // Get all players this player has faced
-  filteredMatches.value.forEach(match => {
-    // Find all teams this player is on
-    const playerTeamIds: number[] = []
-    Object.entries(teamPlayerMap.value).forEach(([teamId, playerIds]) => {
-      if (playerIds.includes(playerId.value)) {
-        playerTeamIds.push(Number(teamId))
-      }
-    })
+  // Find all teams this player is on
+  const playerTeamIds: number[] = []
+  Object.entries(teamPlayerMap.value).forEach(([teamId, playerIds]) => {
+    if (playerIds.includes(playerId.value)) {
+      playerTeamIds.push(Number(teamId))
+    }
+  })
 
+  // Get all direct matchups against other players
+  filteredMatches.value.forEach(match => {
     let playerTeamId = 0
     let opponentTeamId = 0
-    let isWin = false
+    let isPlayerWinner = false
+    const opponentPlayerIds: number[] = []
 
-    // Determine which side the player was on
-    if (playerTeamIds.includes(match.team_a_id)) {
-      playerTeamId = match.team_a_id
-      opponentTeamId = match.team_b_id
-      isWin = match.winner_id === match.team_a_id
-    } else if (playerTeamIds.includes(match.team_b_id)) {
-      playerTeamId = match.team_b_id
-      opponentTeamId = match.team_a_id
-      isWin = match.winner_id === match.team_b_id
+    if (match.match_type === 'team') {
+      // Team match - only count if player's team is on one side
+      if (playerTeamIds.includes(match.participant_a_id)) {
+        playerTeamId = match.participant_a_id
+        opponentTeamId = match.participant_b_id
+        isPlayerWinner = match.winner_id === match.participant_a_id
+      } else if (playerTeamIds.includes(match.participant_b_id)) {
+        playerTeamId = match.participant_b_id
+        opponentTeamId = match.participant_a_id
+        isPlayerWinner = match.winner_id === match.participant_b_id
+      } else {
+        return // Player's team not involved
+      }
+
+      // Get all players on the opponent team - these are head-to-head opponents
+      const opponentPlayerIdsFromTeam = teamPlayerMap.value[opponentTeamId] || []
+      opponentPlayerIds.push(...opponentPlayerIdsFromTeam)
+    } else if (match.match_type === 'single') {
+      // Singles match - direct head-to-head
+      if (match.participant_a_id === playerId.value) {
+        isPlayerWinner = match.winner_id === playerId.value
+        opponentPlayerIds.push(match.participant_b_id)
+      } else if (match.participant_b_id === playerId.value) {
+        isPlayerWinner = match.winner_id === playerId.value
+        opponentPlayerIds.push(match.participant_a_id)
+      } else {
+        return // Player not involved
+      }
     } else {
-      return // Player not involved in this match
+      return // Unknown match type
     }
 
-    // Get all players on the opponent team
-    const opponentPlayerIds = teamPlayerMap.value[opponentTeamId] || []
-
-    // Record stats against each opponent player
+    // Record stats against each direct opponent player
     opponentPlayerIds.forEach(opponentPlayerId => {
       if (!matchupMap[opponentPlayerId]) {
         const opponentPlayer = players.value.find(p => p.id === opponentPlayerId)
@@ -372,7 +414,7 @@ const matchups = computed(() => {
         }
       }
 
-      if (isWin) {
+      if (isPlayerWinner) {
         matchupMap[opponentPlayerId].wins++
       } else {
         matchupMap[opponentPlayerId].losses++
@@ -399,13 +441,13 @@ const allMatchups = computed(() => {
 const bestAgainst = computed(() => {
   return Object.values(matchups.value)
     .sort((a, b) => b.winRate - a.winRate)
-    .slice(0, 5)
+    .slice(0, 3)
 })
 
 const worstAgainst = computed(() => {
   return Object.values(matchups.value)
     .sort((a, b) => a.winRate - b.winRate)
-    .slice(0, 5)
+    .slice(0, 3)
 })
 
 const currentSeasonId = computed(() => {
@@ -422,10 +464,12 @@ const isCurrentSeason = (seasonId?: number) => {
 
 onMounted(() => {
   fetchPlayer()
-  fetchTeams()
-  fetchPlayers()
   fetchSeasons()
   fetchMatches()
+  fetchPlayers()
+  fetchTeams().then(() => {
+    buildTeamPlayerMap()
+  })
 })
 
 watch(playerId, () => {
@@ -505,28 +549,18 @@ const fetchMatches = async () => {
   } catch (e) {
     console.error('Failed to fetch matches', e)
   }
+}
 
-  // Also fetch team-player mappings for all teams
-  try {
-    const res = await fetch(`${api}/teams`)
-    if (res.ok) {
-      const teamsData = await res.json()
-      // For each team, fetch its players
-      for (const team of teamsData) {
-        try {
-          const playersRes = await fetch(`${api}/teams/${team.id}/players`)
-          if (playersRes.ok) {
-            const playersData = await playersRes.json()
-            teamPlayerMap.value[team.id] = playersData.map((p: any) => p.id)
-          }
-        } catch (e) {
-          console.error(`Failed to fetch players for team ${team.id}`, e)
-        }
-      }
+const buildTeamPlayerMap = () => {
+  // Build team-player mappings from the already-fetched teams data
+  // teams come with embedded player arrays from the /teams endpoint
+  teams.value.forEach(team => {
+    if (team.players) {
+      teamPlayerMap.value[team.id] = team.players
+    } else {
+      teamPlayerMap.value[team.id] = []
     }
-  } catch (e) {
-    console.error('Failed to fetch team-player mappings', e)
-  }
+  })
 }
 </script>
 
@@ -654,9 +688,9 @@ h2 {
   margin-top: var(--spacing-xl);
 }
 
-.team-cards {
-  display: flex;
-  flex-direction: column;
+.teams-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--spacing-lg);
 }
 
@@ -666,8 +700,9 @@ h2 {
   padding: var(--spacing-lg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-md);
   color: white;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -677,32 +712,23 @@ h2 {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
-.card-name {
-  font-size: 18px;
+.team-header {
+  width: 100%;
+  text-align: center;
+}
+
+.team-name {
+  font-size: 16px;
   font-weight: 600;
   color: white;
   text-decoration: none;
   transition: color 0.2s ease;
   white-space: normal;
   word-wrap: break-word;
-  min-width: 150px;
 }
 
-.card-name:hover {
+.team-name:hover {
   color: var(--clr-primary-a50);
-}
-
-.card-stats {
-  display: flex;
-  gap: var(--spacing-xl);
-  margin-left: auto;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
 }
 
 .stat-item .stat-label {

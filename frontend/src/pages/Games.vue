@@ -1,8 +1,18 @@
 <template>
   <div class="games-page">
     <div class="filters">
+      <!-- Match Type Filter -->
       <div class="filter-group">
-        <select v-model="selectedTeamId" class="filter-select">
+        <select id="match-type" v-model="selectedMatchType" class="filter-select">
+          <option value="">All Types</option>
+          <option value="team">Team</option>
+          <option value="single">Single</option>
+        </select>
+      </div>
+
+      <!-- Secondary Filter: Team or Player -->
+      <div v-if="selectedMatchType === 'team'" class="filter-group">
+        <select id="team-filter" v-model="selectedTeamId" class="filter-select">
           <option value="">All Teams</option>
           <option v-for="team in teams" :key="team.id" :value="team.id">
             {{ team.name }}
@@ -10,8 +20,19 @@
         </select>
       </div>
 
+      <div v-else-if="selectedMatchType === 'single'" class="filter-group">
+        <select id="player-filter" v-model="selectedPlayerId" class="filter-select">
+          <option value="">All Players</option>
+          <option v-for="player in players" :key="player.id" :value="player.id">
+            {{ player.name }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Date Filter -->
       <div class="filter-group">
         <input 
+          id="date-filter"
           v-model="selectedDate" 
           type="date" 
           class="filter-input"
@@ -19,7 +40,7 @@
         />
       </div>
 
-      <button v-if="selectedTeamId || selectedDate" @click="clearFilters" class="clear-button">
+      <button v-if="selectedMatchType || selectedTeamId || selectedPlayerId || selectedDate" @click="clearFilters" class="clear-button">
         Clear Filters
       </button>
     </div>
@@ -42,10 +63,17 @@
 
         <div class="game-matchup">
           <div class="team-section team-a">
-            <span v-if="game.winner_id === game.team_a_id" class="winner-badge">🏆 Winner</span>
-            <router-link :to="`/teams/${game.team_a_id}`" class="team-name">
-              {{ getTeamName(game.team_a_id) }}
+            <span v-if="game.winner_id === game.participant_a_id" class="winner-badge">🏆 Winner</span>
+            <router-link 
+              v-if="game.match_type === 'team'"
+              :to="`/teams/${game.participant_a_id}`" 
+              class="team-name"
+            >
+              {{ getParticipantName(game.participant_a_id, game.match_type) }}
             </router-link>
+            <span v-else class="team-name">
+              {{ getParticipantName(game.participant_a_id, game.match_type) }}
+            </span>
             <div class="score" v-if="game.score_a !== undefined && game.score_b !== undefined">
               {{ game.score_a }}
             </div>
@@ -56,10 +84,17 @@
           </div>
 
           <div class="team-section team-b">
-            <span v-if="game.winner_id === game.team_b_id" class="winner-badge">🏆 Winner</span>
-            <router-link :to="`/teams/${game.team_b_id}`" class="team-name">
-              {{ getTeamName(game.team_b_id) }}
+            <span v-if="game.winner_id === game.participant_b_id" class="winner-badge">🏆 Winner</span>
+            <router-link 
+              v-if="game.match_type === 'team'"
+              :to="`/teams/${game.participant_b_id}`" 
+              class="team-name"
+            >
+              {{ getParticipantName(game.participant_b_id, game.match_type) }}
             </router-link>
+            <span v-else class="team-name">
+              {{ getParticipantName(game.participant_b_id, game.match_type) }}
+            </span>
             <div class="score" v-if="game.score_a !== undefined && game.score_b !== undefined">
               {{ game.score_b }}
             </div>
@@ -79,8 +114,9 @@ interface Season { id?: number; year: number }
 interface Game {
   id?: number
   season_id: number
-  team_a_id: number
-  team_b_id: number
+  match_type: string
+  participant_a_id: number
+  participant_b_id: number
   score_a?: number
   score_b?: number
   winner_id?: number
@@ -92,15 +128,31 @@ const api = API_URL
 const teams = ref<Team[]>([])
 const seasons = ref<Season[]>([])
 const games = ref<Game[]>([])
+const players = ref<{ id: number; name: string }[]>([])
+const selectedMatchType = ref('')
 const selectedTeamId = ref('')
+const selectedPlayerId = ref('')
 const selectedDate = ref('')
 
 const filteredGames = computed(() => {
   return games.value.filter(game => {
-    // Filter by team
-    if (selectedTeamId.value) {
+    // Filter by match type
+    if (selectedMatchType.value && game.match_type !== selectedMatchType.value) {
+      return false
+    }
+
+    // Filter by team (only for team matches)
+    if (selectedMatchType.value === 'team' && selectedTeamId.value) {
       const teamId = Number(selectedTeamId.value)
-      if (game.team_a_id !== teamId && game.team_b_id !== teamId) {
+      if (game.participant_a_id !== teamId && game.participant_b_id !== teamId) {
+        return false
+      }
+    }
+
+    // Filter by player (only for single matches)
+    if (selectedMatchType.value === 'single' && selectedPlayerId.value) {
+      const playerId = Number(selectedPlayerId.value)
+      if (game.participant_a_id !== playerId && game.participant_b_id !== playerId) {
         return false
       }
     }
@@ -124,7 +176,9 @@ const filteredGames = computed(() => {
 })
 
 const clearFilters = () => {
+  selectedMatchType.value = ''
   selectedTeamId.value = ''
+  selectedPlayerId.value = ''
   selectedDate.value = ''
 }
 
@@ -132,6 +186,7 @@ onMounted(() => {
   fetchTeams()
   fetchSeasons()
   fetchGames()
+  fetchPlayers()
 })
 
 const fetchTeams = async () => {
@@ -180,7 +235,26 @@ const fetchGames = async () => {
   }
 }
 
+const fetchPlayers = async () => {
+  try {
+    const res = await fetch(`${api}/players`)
+    if (res.ok) {
+      const data = await res.json()
+      players.value = data || []
+    }
+  } catch (e) {
+    console.error('Failed to fetch players', e)
+  }
+}
+
 const getTeamName = (id?: number) => teams.value.find(t => t.id === id)?.name || 'Unknown'
+const getPlayerName = (id?: number) => players.value.find(p => p.id === id)?.name || 'Unknown'
+const getParticipantName = (id?: number, matchType?: string) => {
+  if (matchType === 'single') {
+    return getPlayerName(id)
+  }
+  return getTeamName(id)
+}
 const getSeasonYear = (id?: number) => seasons.value.find(s => s.id === id)?.year || '?'
 
 const formatDate = (dateStr?: string) => {

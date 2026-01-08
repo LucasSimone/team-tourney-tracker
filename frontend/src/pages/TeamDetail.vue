@@ -135,8 +135,9 @@ interface Season { id?: number; year: number }
 interface Match {
   id?: number
   season_id: number
-  team_a_id: number
-  team_b_id: number
+  match_type: string
+  participant_a_id: number
+  participant_b_id: number
   winner_id?: number
 }
 interface Matchup {
@@ -186,8 +187,8 @@ const teamStats = computed(() => {
   let losses = 0
 
   filteredMatches.value.forEach(match => {
-    // Check if this team was involved in the match
-    if (match.team_a_id === teamId.value || match.team_b_id === teamId.value) {
+    // Check if this team was involved in the match (only team matches)
+    if (match.match_type === 'team' && (match.participant_a_id === teamId.value || match.participant_b_id === teamId.value)) {
       gamesPlayed++
 
       if (match.winner_id === teamId.value) {
@@ -215,12 +216,17 @@ const matchups = computed(() => {
     let opponentId = 0
     let isWin = false
 
-    // Determine if this team was team_a or team_b
-    if (match.team_a_id === teamId.value) {
-      opponentId = match.team_b_id
+    // Only process team matches
+    if (match.match_type !== 'team') {
+      return
+    }
+
+    // Determine if this team was participant_a or participant_b
+    if (match.participant_a_id === teamId.value) {
+      opponentId = match.participant_b_id
       isWin = match.winner_id === teamId.value
-    } else if (match.team_b_id === teamId.value) {
-      opponentId = match.team_a_id
+    } else if (match.participant_b_id === teamId.value) {
+      opponentId = match.participant_a_id
       isWin = match.winner_id === teamId.value
     } else {
       return // This match doesn't involve our team
@@ -579,6 +585,10 @@ h2 {
 }
 
 @media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .matchup-sections {
     grid-template-columns: 1fr;
   }

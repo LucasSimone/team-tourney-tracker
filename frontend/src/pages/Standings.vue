@@ -80,8 +80,9 @@ interface Season { id?: number; year: number }
 interface Match { 
   id?: number
   season_id: number
-  team_a_id: number
-  team_b_id: number
+  match_type: string
+  participant_a_id: number
+  participant_b_id: number
   winner_id?: number
   score?: string
 }
@@ -137,12 +138,17 @@ const teamStats = computed(() => {
 
   // Count wins/losses from filtered matches
   filteredMatches.value.forEach(match => {
-    // Count games played for both teams
-    if (stats[match.team_a_id]) {
-      stats[match.team_a_id].gamesPlayed++
+    // Only count team matches
+    if (match.match_type !== 'team') {
+      return
     }
-    if (stats[match.team_b_id]) {
-      stats[match.team_b_id].gamesPlayed++
+
+    // Count games played for both teams
+    if (stats[match.participant_a_id]) {
+      stats[match.participant_a_id].gamesPlayed++
+    }
+    if (stats[match.participant_b_id]) {
+      stats[match.participant_b_id].gamesPlayed++
     }
 
     if (match.winner_id) {
@@ -150,7 +156,7 @@ const teamStats = computed(() => {
         stats[match.winner_id].wins++
       }
       // Loser is the other team
-      const loserId = match.team_a_id === match.winner_id ? match.team_b_id : match.team_a_id
+      const loserId = match.participant_a_id === match.winner_id ? match.participant_b_id : match.participant_a_id
       if (stats[loserId]) {
         stats[loserId].losses++
       }

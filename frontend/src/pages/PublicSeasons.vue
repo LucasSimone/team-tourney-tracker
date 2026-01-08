@@ -36,8 +36,9 @@ interface Season { id?: number; year: number }
 interface Match { 
   id?: number
   season_id: number
-  team_a_id: number
-  team_b_id: number
+  match_type: string
+  participant_a_id: number
+  participant_b_id: number
   winner_id?: number
 }
 interface SeasonStat {
@@ -58,8 +59,11 @@ const seasonStats = computed(() => {
       const teamsInSeason = new Set<number>()
       
       seasonMatches.forEach(match => {
-        teamsInSeason.add(match.team_a_id)
-        teamsInSeason.add(match.team_b_id)
+        // Only count teams from team matches
+        if (match.match_type === 'team') {
+          teamsInSeason.add(match.participant_a_id)
+          teamsInSeason.add(match.participant_b_id)
+        }
       })
 
       return {
