@@ -11,42 +11,81 @@
             </option>
           </select>
         </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-column">
-          <label>{{ newMatch.team_a_id ? getTeamName(newMatch.team_a_id) : 'Team 1' }}</label>
-          <select v-model.number="newMatch.team_a_id">
-            <option value="0">Select Team 1</option>
-            <option v-for="team in teams" :key="team.id" :value="team.id">
-              {{ team.name }}
-            </option>
-          </select>
-          <input v-model="newMatch.score_a" type="number" placeholder="Score" class="score-input" />
-        </div>
 
         <div class="form-column">
-          <label>{{ newMatch.team_b_id ? getTeamName(newMatch.team_b_id) : 'Team 2' }}</label>
-          <select v-model.number="newMatch.team_b_id">
-            <option value="0">Select Team 2</option>
-            <option v-for="team in teams" :key="team.id" :value="team.id">
-              {{ team.name }}
-            </option>
+          <label>Match Type</label>
+          <select v-model="newMatch.match_type">
+            <option value="">Select Type</option>
+            <option value="team">Team</option>
+            <option value="single">Single</option>
           </select>
-          <input v-model="newMatch.score_b" type="number" placeholder="Score" class="score-input" />
         </div>
       </div>
 
-      <div class="form-row">
+      <!-- Team Match Participants -->
+      <template v-if="newMatch.match_type === 'team'">
+        <div class="form-row">
+          <div class="form-column">
+            <label>{{ newMatch.participant_a_id ? getTeamName(newMatch.participant_a_id) : 'Team A' }}</label>
+            <select v-model.number="newMatch.participant_a_id">
+              <option value="0">Select Team</option>
+              <option v-for="team in teams" :key="team.id" :value="team.id">
+                {{ team.name }}
+              </option>
+            </select>
+            <input v-model.number="newMatch.score_a" type="number" placeholder="Score" class="score-input" />
+          </div>
+
+          <div class="form-column">
+            <label>{{ newMatch.participant_b_id ? getTeamName(newMatch.participant_b_id) : 'Team B' }}</label>
+            <select v-model.number="newMatch.participant_b_id">
+              <option value="0">Select Team</option>
+              <option v-for="team in teams" :key="team.id" :value="team.id">
+                {{ team.name }}
+              </option>
+            </select>
+            <input v-model.number="newMatch.score_b" type="number" placeholder="Score" class="score-input" />
+          </div>
+        </div>
+      </template>
+
+      <!-- Single Match Participants -->
+      <template v-if="newMatch.match_type === 'single'">
+        <div class="form-row">
+          <div class="form-column">
+            <label>{{ newMatch.participant_a_id ? getPlayerName(newMatch.participant_a_id) : 'Player A' }}</label>
+            <select v-model.number="newMatch.participant_a_id">
+              <option value="0">Select Player</option>
+              <option v-for="player in players" :key="player.id" :value="player.id">
+                {{ player.name }}
+              </option>
+            </select>
+            <input v-model.number="newMatch.score_a" type="number" placeholder="Score" class="score-input" />
+          </div>
+
+          <div class="form-column">
+            <label>{{ newMatch.participant_b_id ? getPlayerName(newMatch.participant_b_id) : 'Player B' }}</label>
+            <select v-model.number="newMatch.participant_b_id">
+              <option value="0">Select Player</option>
+              <option v-for="player in players" :key="player.id" :value="player.id">
+                {{ player.name }}
+              </option>
+            </select>
+            <input v-model.number="newMatch.score_b" type="number" placeholder="Score" class="score-input" />
+          </div>
+        </div>
+      </template>
+
+      <div class="form-row" v-if="newMatch.match_type">
         <div class="form-column">
           <label>Winner</label>
-          <select v-model.number="newMatch.winner_id" :disabled="!newMatch.team_a_id || !newMatch.team_b_id">
+          <select v-model.number="newMatch.winner_id" :disabled="!newMatch.participant_a_id || !newMatch.participant_b_id">
             <option value="0">{{ getWinnerLabel(newMatch) }}</option>
-            <option v-if="newMatch.team_a_id" :value="newMatch.team_a_id">
-              {{ getTeamName(newMatch.team_a_id) }}
+            <option v-if="newMatch.participant_a_id" :value="newMatch.participant_a_id">
+              {{ newMatch.match_type === 'team' ? getTeamName(newMatch.participant_a_id) : getPlayerName(newMatch.participant_a_id) }}
             </option>
-            <option v-if="newMatch.team_b_id" :value="newMatch.team_b_id">
-              {{ getTeamName(newMatch.team_b_id) }}
+            <option v-if="newMatch.participant_b_id" :value="newMatch.participant_b_id">
+              {{ newMatch.match_type === 'team' ? getTeamName(newMatch.participant_b_id) : getPlayerName(newMatch.participant_b_id) }}
             </option>
           </select>
         </div>
@@ -62,9 +101,14 @@
     <div v-else class="items-grid">
       <div v-for="match in matches" :key="match.id" class="item-card">
         <div class="item-header">
-          <h3>{{ getTeamName(match.team_a_id) }} vs {{ getTeamName(match.team_b_id) }}</h3>
+          <p class="match-type-badge">{{ match.match_type === 'team' ? 'Team' : 'Single' }}</p>
+          <h3>
+            {{ match.match_type === 'team' ? getTeamName(match.participant_a_id) : getPlayerName(match.participant_a_id) }}
+            vs
+            {{ match.match_type === 'team' ? getTeamName(match.participant_b_id) : getPlayerName(match.participant_b_id) }}
+          </h3>
           <p class="match-score">{{ match.score_a !== undefined && match.score_b !== undefined ? `${match.score_a} - ${match.score_b}` : '—' }}</p>
-          <p class="match-winner">Winner: {{ getTeamName(match.winner_id) || '—' }}</p>
+          <p class="match-winner">Winner: {{ match.winner_id ? (match.match_type === 'team' ? getTeamName(match.winner_id) : getPlayerName(match.winner_id)) : '—' }}</p>
           <p class="match-season">Season {{ getSeasonYear(match.season_id) }}</p>
           <p class="match-date">{{ formatDateTime(match.created_at) }}</p>
         </div>
@@ -90,36 +134,72 @@
         </div>
 
         <div class="modal-form-group">
-          <label>{{ editingMatch.team_a_id ? getTeamName(editingMatch.team_a_id) : 'Team 1' }}</label>
-          <select v-model.number="editingMatch.team_a_id">
-            <option value="0">Select Team 1</option>
-            <option v-for="team in teams" :key="team.id" :value="team.id">
-              {{ team.name }}
-            </option>
+          <label>Match Type</label>
+          <select v-model="editingMatch.match_type" disabled>
+            <option value="team">Team</option>
+            <option value="single">Single</option>
           </select>
-          <input v-model.number="editingMatch.score_a" type="number" placeholder="Score" />
         </div>
 
-        <div class="modal-form-group">
-          <label>{{ editingMatch.team_b_id ? getTeamName(editingMatch.team_b_id) : 'Team 2' }}</label>
-          <select v-model.number="editingMatch.team_b_id">
-            <option value="0">Select Team 2</option>
-            <option v-for="team in teams" :key="team.id" :value="team.id">
-              {{ team.name }}
-            </option>
-          </select>
-          <input v-model.number="editingMatch.score_b" type="number" placeholder="Score" />
-        </div>
+        <!-- Team Match Participants -->
+        <template v-if="editingMatch.match_type === 'team'">
+          <div class="modal-form-group">
+            <label>{{ editingMatch.participant_a_id ? getTeamName(editingMatch.participant_a_id) : 'Team A' }}</label>
+            <select v-model.number="editingMatch.participant_a_id">
+              <option value="0">Select Team</option>
+              <option v-for="team in teams" :key="team.id" :value="team.id">
+                {{ team.name }}
+              </option>
+            </select>
+            <input v-model.number="editingMatch.score_a" type="number" placeholder="Score" />
+          </div>
+
+          <div class="modal-form-group">
+            <label>{{ editingMatch.participant_b_id ? getTeamName(editingMatch.participant_b_id) : 'Team B' }}</label>
+            <select v-model.number="editingMatch.participant_b_id">
+              <option value="0">Select Team</option>
+              <option v-for="team in teams" :key="team.id" :value="team.id">
+                {{ team.name }}
+              </option>
+            </select>
+            <input v-model.number="editingMatch.score_b" type="number" placeholder="Score" />
+          </div>
+        </template>
+
+        <!-- Single Match Participants -->
+        <template v-if="editingMatch.match_type === 'single'">
+          <div class="modal-form-group">
+            <label>{{ editingMatch.participant_a_id ? getPlayerName(editingMatch.participant_a_id) : 'Player A' }}</label>
+            <select v-model.number="editingMatch.participant_a_id">
+              <option value="0">Select Player</option>
+              <option v-for="player in players" :key="player.id" :value="player.id">
+                {{ player.name }}
+              </option>
+            </select>
+            <input v-model.number="editingMatch.score_a" type="number" placeholder="Score" />
+          </div>
+
+          <div class="modal-form-group">
+            <label>{{ editingMatch.participant_b_id ? getPlayerName(editingMatch.participant_b_id) : 'Player B' }}</label>
+            <select v-model.number="editingMatch.participant_b_id">
+              <option value="0">Select Player</option>
+              <option v-for="player in players" :key="player.id" :value="player.id">
+                {{ player.name }}
+              </option>
+            </select>
+            <input v-model.number="editingMatch.score_b" type="number" placeholder="Score" />
+          </div>
+        </template>
 
         <div class="modal-form-group">
           <label>Winner</label>
-          <select v-model.number="editingMatch.winner_id" :disabled="!editingMatch.team_a_id || !editingMatch.team_b_id">
+          <select v-model.number="editingMatch.winner_id" :disabled="!editingMatch.participant_a_id || !editingMatch.participant_b_id">
             <option value="0">{{ getWinnerLabel(editingMatch) }}</option>
-            <option v-if="editingMatch.team_a_id" :value="editingMatch.team_a_id">
-              {{ getTeamName(editingMatch.team_a_id) }}
+            <option v-if="editingMatch.participant_a_id" :value="editingMatch.participant_a_id">
+              {{ editingMatch.match_type === 'team' ? getTeamName(editingMatch.participant_a_id) : getPlayerName(editingMatch.participant_a_id) }}
             </option>
-            <option v-if="editingMatch.team_b_id" :value="editingMatch.team_b_id">
-              {{ getTeamName(editingMatch.team_b_id) }}
+            <option v-if="editingMatch.participant_b_id" :value="editingMatch.participant_b_id">
+              {{ editingMatch.match_type === 'team' ? getTeamName(editingMatch.participant_b_id) : getPlayerName(editingMatch.participant_b_id) }}
             </option>
           </select>
         </div>
@@ -148,20 +228,41 @@ import { ref, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 
 interface Team { id?: number; name: string }
+interface Player { id?: number; name: string }
 interface Season { id?: number; year: number }
-interface Match { id?: number; season_id: number; team_a_id: number; team_b_id: number; winner_id?: number; score_a?: number; score_b?: number; created_at?: string }
+interface Match { 
+  id?: number
+  season_id: number
+  match_type: string
+  participant_a_id: number
+  participant_b_id: number
+  winner_id?: number
+  score_a?: number
+  score_b?: number
+  created_at?: string
+}
 
 const api = API_URL
 const { getAuthHeaders } = useAuth()
 const teams = ref<Team[]>([])
+const players = ref<Player[]>([])
 const seasons = ref<Season[]>([])
 const matches = ref<Match[]>([])
-const newMatch = ref<Match>({ season_id: 0, team_a_id: 0, team_b_id: 0, winner_id: 0, score_a: undefined, score_b: undefined })
+const newMatch = ref<Match>({ 
+  season_id: 0, 
+  match_type: '', 
+  participant_a_id: 0, 
+  participant_b_id: 0, 
+  winner_id: 0, 
+  score_a: undefined, 
+  score_b: undefined 
+})
 const editingMatch = ref<Match | null>(null)
 const currentYear = new Date().getFullYear()
 
 onMounted(() => {
   fetchTeams()
+  fetchPlayers()
   fetchSeasons()
   fetchMatches()
   // Set default season to current year
@@ -184,6 +285,20 @@ const fetchTeams = async () => {
     }
   } catch (e) {
     console.error('Failed to fetch teams', e)
+  }
+}
+
+const fetchPlayers = async () => {
+  try {
+    const res = await fetch(`${api}/players`, {
+      headers: getAuthHeaders()
+    })
+    if (res.ok) {
+      const data = await res.json()
+      players.value = data || []
+    }
+  } catch (e) {
+    console.error('Failed to fetch players', e)
   }
 }
 
@@ -216,6 +331,7 @@ const fetchMatches = async () => {
 }
 
 const getTeamName = (id?: number) => teams.value.find(t => t.id === id)?.name || 'Unknown'
+const getPlayerName = (id?: number) => players.value.find(p => p.id === id)?.name || 'Unknown'
 const getSeasonYear = (id?: number) => seasons.value.find(s => s.id === id)?.year || '—'
 
 const formatDateTime = (dateStr?: string) => {
@@ -247,9 +363,9 @@ const getWinnerLabel = (match: Match) => {
   // If both scores are provided, show the automatically determined winner
   if (match.score_a !== undefined && match.score_b !== undefined) {
     if (match.score_a > match.score_b) {
-      return `Winner: ${getTeamName(match.team_a_id)}`
+      return `Winner: ${match.match_type === 'team' ? getTeamName(match.participant_a_id) : getPlayerName(match.participant_a_id)}`
     } else if (match.score_b > match.score_a) {
-      return `Winner: ${getTeamName(match.team_b_id)}`
+      return `Winner: ${match.match_type === 'team' ? getTeamName(match.participant_b_id) : getPlayerName(match.participant_b_id)}`
     } else {
       return 'Draw - Select Winner'
     }
@@ -258,14 +374,14 @@ const getWinnerLabel = (match: Match) => {
 }
 
 const addMatch = async () => {
-  if (!newMatch.value.season_id || !newMatch.value.team_a_id || !newMatch.value.team_b_id) return
+  if (!newMatch.value.season_id || !newMatch.value.match_type || !newMatch.value.participant_a_id || !newMatch.value.participant_b_id) return
 
   // Auto-determine winner from scores if both are provided
   if (newMatch.value.score_a !== undefined && newMatch.value.score_b !== undefined) {
     if (newMatch.value.score_a > newMatch.value.score_b) {
-      newMatch.value.winner_id = newMatch.value.team_a_id
+      newMatch.value.winner_id = newMatch.value.participant_a_id
     } else if (newMatch.value.score_b > newMatch.value.score_a) {
-      newMatch.value.winner_id = newMatch.value.team_b_id
+      newMatch.value.winner_id = newMatch.value.participant_b_id
     }
   }
 
@@ -279,7 +395,15 @@ const addMatch = async () => {
     })
     if (res.ok) {
       const currentSeason = seasons.value.find(s => s.year === currentYear)
-      newMatch.value = { season_id: currentSeason?.id || 0, team_a_id: 0, team_b_id: 0, winner_id: 0, score_a: undefined, score_b: undefined }
+      newMatch.value = { 
+        season_id: currentSeason?.id || 0, 
+        match_type: '', 
+        participant_a_id: 0, 
+        participant_b_id: 0, 
+        winner_id: 0, 
+        score_a: undefined, 
+        score_b: undefined 
+      }
       fetchMatches()
     }
   } catch (e) {
@@ -292,7 +416,7 @@ const editMatch = (match: Match) => {
 }
 
 const saveMatch = async () => {
-  if (!editingMatch.value || !editingMatch.value.season_id || !editingMatch.value.team_a_id || !editingMatch.value.team_b_id) return
+  if (!editingMatch.value || !editingMatch.value.season_id || !editingMatch.value.participant_a_id || !editingMatch.value.participant_b_id) return
   try {
     const res = await fetch(`${api}/matches/${editingMatch.value.id}`, {
       method: 'PUT',
@@ -481,6 +605,18 @@ input:focus, select:focus {
 .item-header h3 {
   margin: 0 0 var(--spacing-md) 0;
   font-size: 16px;
+}
+
+.match-type-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  background: var(--clr-primary-a10);
+  color: white;
+  border-radius: 3px;
+  margin: 0 0 var(--spacing-sm) 0;
+  text-transform: uppercase;
 }
 
 .match-score {
