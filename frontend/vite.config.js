@@ -16,6 +16,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'tourney.nebulous.tech'
+    ],
     proxy: {
       // Proxy /api requests to backend in development
       // Works in both Docker (backend service) and local dev (localhost:8080)
