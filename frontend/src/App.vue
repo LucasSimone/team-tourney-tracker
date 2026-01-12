@@ -379,7 +379,7 @@ h1, h2, h3, h4, h5, h6 {
   background-color: transparent;
   border: none;
   border-radius: var(--radius);
-  margin-top: 0;
+  margin-top: var(--spacing-md);
   margin-left: 0;
   min-width: auto;
   display: none;
