@@ -23,19 +23,15 @@ function getApiUrl(): string {
     return (window as any).__API_URL__
   }
 
-  // Default to current origin's API endpoint
-  // In development, this will be localhost:8080
-  // In production, this will match the frontend's domain
+  // Default to current origin's API endpoint with /api prefix
+  // In development, this will be localhost:5173/api (routes to backend via docker-compose)
+  // In production, this will be yourdomain.com/api (routes via Nginx reverse proxy)
   const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:'
-  const host = typeof window !== 'undefined' ? window.location.host : 'localhost:8080'
+  const host = typeof window !== 'undefined' ? window.location.host : 'localhost:5173'
   
-  // If running on port 5173 (dev), assume backend is on 8080
-  if (host.includes('5173')) {
-    return 'http://localhost:8080'
-  }
-  
-  // Otherwise, assume backend is on same host as frontend
-  // with /api prefix (Nginx routes /api/* to backend)
+  // Always use /api prefix for consistency between dev and prod
+  // Dev: http://localhost:5173/api (docker-compose routes to backend)
+  // Prod: https://yourdomain.com/api (Nginx reverse proxy routes to backend)
   return `${protocol}//${host}/api`
 }
 
