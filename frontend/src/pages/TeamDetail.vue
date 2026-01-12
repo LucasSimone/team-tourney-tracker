@@ -4,7 +4,9 @@
     <div v-else-if="team && matchups" class="team-detail-content">
       <div class="header">
         <router-link to="/standings" class="back-button">← Back to Standings</router-link>
-        <h1>{{ team.name }}</h1>
+        <router-link :to="`/teams/${teamId}/poster`" class="team-name-link">
+          <h1>{{ team.name }}</h1>
+        </router-link>
       </div>
 
       <div class="season-filter">
@@ -311,9 +313,7 @@ const getBackgroundStyle = () => {
   }
   return {
     backgroundImage: `linear-gradient(rgba(26, 26, 46, 0.85), rgba(22, 33, 62, 0.85)), url('${teamImageUrl.value}')`,
-    backgroundSize: 'cover',
     backgroundPosition: 'center',
-    backgroundAttachment: 'fixed',
     minHeight: '100vh'
   }
 }
@@ -392,16 +392,17 @@ const fetchMatches = async () => {
 </script>
 
 <style scoped>
+
 .team-detail-page {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xl);
-  background-size: cover;
+  background-size: contain;
   background-position: center;
   background-attachment: fixed;
   min-height: 100vh;
-  margin: calc(var(--spacing-lg) * -1);
   padding: var(--spacing-lg);
+  padding-bottom: max(var(--spacing-lg), env(safe-area-inset-bottom), 60px);
 }
 
 .team-detail-content {
@@ -429,6 +430,22 @@ const fetchMatches = async () => {
   gap: var(--spacing-lg);
   align-items: flex-start;
   margin-bottom: var(--spacing-lg);
+}
+
+.team-name-link {
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+  cursor: pointer;
+}
+
+.team-name-link:hover h1 {
+  opacity: 0.8;
+}
+
+.team-name-link h1 {
+  margin: 0;
+  font-size: 32px;
+  transition: opacity 0.2s ease;
 }
 
 .back-button {

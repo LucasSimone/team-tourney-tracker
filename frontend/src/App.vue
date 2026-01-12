@@ -13,6 +13,7 @@
       <nav class="nav-menu" :class="{ active: menuOpen }">
         <div class="nav-public">
           <router-link to="/standings" @click="menuOpen = false">Standings</router-link>
+          <router-link to="/teams" @click="menuOpen = false">Teams</router-link>
           <router-link to="/players" @click="menuOpen = false">Players</router-link>
           <router-link to="/games" @click="menuOpen = false">Games</router-link>
           <router-link to="/seasons" @click="menuOpen = false">Seasons</router-link>
@@ -45,7 +46,7 @@
       </nav>
     </header>
 
-    <main class="main-content">
+    <main class="main-content" :class="{ 'full-bleed': route.name === 'TeamDetail' }">
       <router-view />
     </main>
   </div>
@@ -82,8 +83,10 @@ const pageTitle = computed(() => {
     'Standings': 'Standings',
     'StandingsAlias': 'Standings',
     'TeamDetail': detailPageTitle.value,
+    'TeamPoster': detailPageTitle.value,
     'PlayerDetail': detailPageTitle.value,
     'Games': 'Games',
+    'Teams': 'Teams',
     'Players': 'Players',
     'PublicSeasons': 'Seasons',
     'Track': 'Track Match',
@@ -492,6 +495,10 @@ h1, h2, h3, h4, h5, h6 {
   overflow-x: hidden;
   width: 100%;
   -webkit-overflow-scrolling: touch;
+}
+
+.main-content.full-bleed {
+  padding: 0px;
 }
 
 @media (max-width: 768px) {

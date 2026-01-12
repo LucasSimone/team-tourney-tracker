@@ -10,9 +10,11 @@ import AdminBackup from './pages/admin/Backup.vue'
 import Track from './pages/Track.vue'
 import Standings from './pages/Standings.vue'
 import Games from './pages/Games.vue'
+import Teams from './pages/Teams.vue'
 import Players from './pages/Players.vue'
 import LiveScore from './pages/LiveScore.vue'
 import TeamDetail from './pages/TeamDetail.vue'
+import TeamPoster from './pages/TeamPoster.vue'
 import PlayerDetail from './pages/PlayerDetail.vue'
 import PublicSeasons from './pages/PublicSeasons.vue'
 
@@ -42,6 +44,12 @@ const routes = [
     meta: { requiresAuth: false }
   },
   {
+    path: '/teams/:id/poster',
+    name: 'TeamPoster',
+    component: TeamPoster,
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/players/:id',
     name: 'PlayerDetail',
     component: PlayerDetail,
@@ -57,6 +65,12 @@ const routes = [
     path: '/players',
     name: 'Players',
     component: Players,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/teams',
+    name: 'Teams',
+    component: Teams,
     meta: { requiresAuth: false }
   },
   {
