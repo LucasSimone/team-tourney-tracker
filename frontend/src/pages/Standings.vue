@@ -4,7 +4,7 @@
       <select v-model.number="selectedSeasonId">
         <option value="0">All Seasons</option>
         <option v-for="season in seasons" :key="season.id" :value="season.id">
-          Season {{ season.year }}{{ isCurrentSeason(season.id) ? ' (Current)' : '' }}
+          {{ season.year }}{{ isCurrentSeason(season.id) ? ' (Current)' : '' }}
         </option>
       </select>
     </div>
@@ -12,7 +12,7 @@
     <div v-if="teamStats.length > 0" class="stats-section">
       <h2>Team Rankings</h2>
       <div class="stats-cards">
-        <div v-for="(stat, index) in teamStats" :key="stat.id" class="stat-card">
+        <div v-for="(stat, index) in teamStats" :key="stat.id" class="stat-card" :style="getCardStyle(stat.id)">
           <div class="card-header">
             <div class="card-rank">{{ index + 1 }}</div>
             <router-link :to="`/teams/${stat.id}`" class="card-name">{{ stat.name }}</router-link>
@@ -111,6 +111,7 @@ const seasons = ref<Season[]>([])
 const matches = ref<Match[]>([])
 const playerStats = ref<PlayerStat[]>([])
 const selectedSeasonId = ref(0)
+const teamImages = ref<{ [key: number]: string }>({})
 
 const filteredMatches = computed(() => {
   if (selectedSeasonId.value === 0) {
@@ -193,6 +194,12 @@ const fetchTeams = async () => {
     if (res.ok) {
       const data = await res.json()
       teams.value = data || []
+      // Load images for each team
+      for (const team of teams.value) {
+        if (team.id) {
+          await loadTeamImage(team.id)
+        }
+      }
     }
   } catch (e) {
     console.error('Failed to fetch teams', e)
@@ -273,6 +280,30 @@ const isCurrentSeason = (seasonId?: number) => {
 
 const getTeamName = (id?: number) => teams.value.find(t => t.id === id)?.name || 'Unknown'
 const getSeasonYear = (id?: number) => seasons.value.find(s => s.id === id)?.year || '?'
+
+const loadTeamImage = async (teamId: number) => {
+  try {
+    const res = await fetch(`${api}/teams/${teamId}/image`)
+    if (res.ok) {
+      const blob = await res.blob()
+      teamImages.value[teamId] = URL.createObjectURL(blob)
+    }
+  } catch (e) {
+    console.error(`Failed to load team image for team ${teamId}`, e)
+  }
+}
+
+const getCardStyle = (teamId: number) => {
+  const imageUrl = teamImages.value[teamId]
+  if (!imageUrl) {
+    return {}
+  }
+  return {
+    backgroundImage: `linear-gradient(135deg, rgba(26, 26, 46, 0.85) 0%, rgba(22, 33, 62, 0.85) 100%), url(${imageUrl})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center'
+  }
+}
 </script>
 
 <style scoped>
@@ -437,9 +468,11 @@ h2 {
 .card-rank {
   font-size: 28px;
   font-weight: 700;
-  color: var(--clr-primary-a50);
+  color: white;
   min-width: 50px;
   text-align: center;
+  text-shadow: 1px 1px 10px rgba(0, 0, 0, 1)
+
 }
 
 .card-name {
@@ -451,6 +484,7 @@ h2 {
   white-space: normal;
   word-wrap: break-word;
   text-align: right;
+  text-shadow: 1px 1px 10px rgba(0, 0, 0, 1)
 }
 
 .card-name:hover {
@@ -473,7 +507,7 @@ h2 {
 .stat-label {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.7);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -533,6 +567,7 @@ h2 {
     flex: 1;
     min-width: 0;
     text-align: right;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 1);
   }
 
   .card-stats {
@@ -548,7 +583,7 @@ h2 {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.6);
     padding: var(--spacing-md);
     border-radius: 4px;
   }

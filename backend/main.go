@@ -3,9 +3,13 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -81,7 +85,11 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	w.Header().Set("Content-Type", "application/json")
+
+	// Only set Content-Type if not already set (don't override multipart/form-data)
+	if w.Header().Get("Content-Type") == "" {
+		w.Header().Set("Content-Type", "application/json")
+	}
 }
 
 func getIDFromPath(path string) (string, bool) {
@@ -139,7 +147,8 @@ func main() {
 func initDB() {
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS teams (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL UNIQUE
+		name TEXT NOT NULL UNIQUE,
+		image_path TEXT
 	);
 	CREATE TABLE IF NOT EXISTS seasons (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -188,6 +197,12 @@ func teamsHandler(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Check if this is a /teams/{id}/image request
+	if strings.Contains(r.URL.Path, "/image") {
+		handleTeamImage(w, r)
 		return
 	}
 
@@ -358,6 +373,12 @@ func teamsHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		// Get and delete team image if it exists
+		var imagePath string
+		db.QueryRow("SELECT COALESCE(image_path, '') FROM teams WHERE id = ?", id).Scan(&imagePath)
+		if imagePath != "" {
+			os.Remove(imagePath)
+		}
 		// Delete team_players first (due to foreign key)
 		_, _ = db.Exec("DELETE FROM team_players WHERE team_id = ?", id)
 		_, err := db.Exec("DELETE FROM teams WHERE id = ?", id)
@@ -366,6 +387,175 @@ func teamsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
+	}
+}
+
+// Handler for /teams/{id}/image
+func handleTeamImage(w http.ResponseWriter, r *http.Request) {
+	setCORSHeaders(w, r)
+
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Parse team ID from path like /teams/1/image
+	parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
+	if len(parts) < 3 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	teamIDStr := parts[2]
+	teamID, err := strconv.ParseInt(teamIDStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case "GET":
+		// Get image for team
+		var imagePath string
+		err := db.QueryRow("SELECT COALESCE(image_path, '') FROM teams WHERE id = ?", teamID).Scan(&imagePath)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if imagePath == "" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		// Check if file exists
+		if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		// Serve the image
+		http.ServeFile(w, r, imagePath)
+
+	case "POST":
+		// Upload image for team (requires admin)
+		if claims := requireAdmin(w, r); claims == nil {
+			return
+		}
+
+		// Parse multipart form with max 10MB
+		if err := r.ParseMultipartForm(10 << 20); err != nil {
+			log.Printf("ParseMultipartForm error: %v, Content-Type: %s", err, r.Header.Get("Content-Type"))
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Failed to parse form: %v", err)})
+			return
+		}
+
+		file, handler, err := r.FormFile("image")
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No image file provided"})
+			return
+		}
+		defer file.Close()
+
+		// Validate file type
+		allowedTypes := map[string]bool{
+			"image/jpeg": true,
+			"image/png":  true,
+			"image/webp": true,
+		}
+		if !allowedTypes[handler.Header.Get("Content-Type")] {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid file type. Only JPEG, PNG, and WebP are allowed"})
+			return
+		}
+
+		// Create uploads directory if it doesn't exist
+		uploadsDir := "/db/uploads/teams"
+		if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create upload directory"})
+			return
+		}
+
+		// Get extension from content type
+		var ext string
+		switch handler.Header.Get("Content-Type") {
+		case "image/jpeg":
+			ext = ".jpg"
+		case "image/png":
+			ext = ".png"
+		case "image/webp":
+			ext = ".webp"
+		}
+
+		// Generate filename
+		filename := fmt.Sprintf("team_%d%s", teamID, ext)
+		filepath := filepath.Join(uploadsDir, filename)
+
+		// Delete old image if it exists
+		var oldImagePath string
+		db.QueryRow("SELECT COALESCE(image_path, '') FROM teams WHERE id = ?", teamID).Scan(&oldImagePath)
+		if oldImagePath != "" && oldImagePath != filepath {
+			os.Remove(oldImagePath)
+		}
+
+		// Create the file
+		dst, err := os.Create(filepath)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save image"})
+			return
+		}
+		defer dst.Close()
+
+		// Copy file contents
+		if _, err := io.Copy(dst, file); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to save image"})
+			return
+		}
+
+		// Update database with image path
+		_, err = db.Exec("UPDATE teams SET image_path = ? WHERE id = ?", filepath, teamID)
+		if err != nil {
+			os.Remove(filepath)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update team"})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Image uploaded successfully"})
+
+	case "DELETE":
+		// Delete image for team (requires admin)
+		if claims := requireAdmin(w, r); claims == nil {
+			return
+		}
+
+		var imagePath string
+		err := db.QueryRow("SELECT COALESCE(image_path, '') FROM teams WHERE id = ?", teamID).Scan(&imagePath)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if imagePath != "" {
+			os.Remove(imagePath)
+			_, err = db.Exec("UPDATE teams SET image_path = NULL WHERE id = ?", teamID)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Image deleted successfully"})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
