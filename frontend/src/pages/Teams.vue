@@ -232,7 +232,7 @@ const getCardStyle = (teamId: number) => {
   }
   return {
     backgroundImage: `linear-gradient(135deg, rgba(26, 26, 46, 0.85) 0%, rgba(22, 33, 62, 0.85) 100%), url(${imageUrl})`,
-    backgroundSize: 'cover',
+    backgroundSize: 'contain',
     backgroundPosition: 'center'
   }
 }
