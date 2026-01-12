@@ -179,7 +179,7 @@ div.dark {
   --shadow: rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   width: 100%;
 }
 
@@ -199,11 +199,6 @@ body {
   color: var(--text-primary);
   transition: background-color 0.2s, color 0.2s;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  width: 100%;
-  overflow: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -491,7 +486,6 @@ h1, h2, h3, h4, h5, h6 {
   padding: var(--spacing-lg);
   padding-bottom: max(var(--spacing-lg), env(safe-area-inset-bottom));
   flex: 1;
-  overflow-y: auto;
   width: 100%;
 }
 
