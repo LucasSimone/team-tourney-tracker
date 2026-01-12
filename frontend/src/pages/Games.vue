@@ -61,8 +61,8 @@
           </div>
         </div>
 
-        <div class="game-matchup">
-          <div class="team-section team-a" :style="getTeamBackgroundStyle(game.participant_a_id)">
+        <div class="game-matchup" :class="{ 'is-team-match': game.match_type === 'team' }">
+          <div class="team-section team-a" :style="game.match_type === 'team' ? getTeamBackgroundStyle(game.participant_a_id) : {}">
             <span v-if="game.winner_id === game.participant_a_id" class="winner-badge">🏆 Winner</span>
             <router-link 
               v-if="game.match_type === 'team'"
@@ -83,7 +83,7 @@
             <span class="vs">vs</span>
           </div>
 
-          <div class="team-section team-b" :style="getTeamBackgroundStyle(game.participant_b_id)">
+          <div class="team-section team-b" :style="game.match_type === 'team' ? getTeamBackgroundStyle(game.participant_b_id) : {}">
             <span v-if="game.winner_id === game.participant_b_id" class="winner-badge">🏆 Winner</span>
             <router-link 
               v-if="game.match_type === 'team'"
@@ -451,8 +451,11 @@ h1 {
   gap: var(--spacing-md);
   padding: var(--spacing-lg);
   border-radius: var(--radius);
-  min-height: 180px;
   justify-content: center;
+}
+
+.is-team-match .team-section {
+  min-height: 180px;
 }
 
 .team-section.team-a {

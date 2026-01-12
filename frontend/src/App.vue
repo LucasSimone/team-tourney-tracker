@@ -177,6 +177,10 @@ div.dark {
   --text-secondary: #e0e0e0;
   --border: #404040;
   --shadow: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
 }
 
 * {
@@ -185,11 +189,21 @@ div.dark {
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background-color: var(--clr-surface-a0);
   color: var(--text-primary);
   transition: background-color 0.2s, color 0.2s;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  width: 100%;
+  overflow: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -475,6 +489,9 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--spacing-lg);
+  flex: 1;
+  overflow-y: auto;
+  width: 100%;
 }
 
 @media (max-width: 768px) {

@@ -132,6 +132,9 @@ server {
     # =========================================================================
     
     location /api/ {
+        # Allow large file uploads (10MB for images)
+        client_max_body_size 10M;
+        
         # Strip /api prefix before proxying to backend
         # /api/auth/login → /auth/login
         rewrite ^/api/(.*)$ /$1 break;

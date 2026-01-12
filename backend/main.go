@@ -506,8 +506,8 @@ func handleTeamImage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Parse multipart form with max 10MB
-		if err := r.ParseMultipartForm(10 << 20); err != nil {
+		// Parse multipart form with max 50MB
+		if err := r.ParseMultipartForm(50 << 20); err != nil {
 			log.Printf("ParseMultipartForm error: %v, Content-Type: %s", err, r.Header.Get("Content-Type"))
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Failed to parse form: %v", err)})
