@@ -179,8 +179,9 @@ div.dark {
   --shadow: rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  width: 100%;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
 * {
@@ -191,6 +192,7 @@ div.dark {
 
 html {
   height: 100%;
+  background-color: var(--clr-surface-a0);
 }
 
 body {
@@ -198,7 +200,7 @@ body {
   background-color: var(--clr-surface-a0);
   color: var(--text-primary);
   transition: background-color 0.2s, color 0.2s;
-  min-height: 100vh;
+  overflow: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -484,9 +486,12 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--spacing-lg);
-  padding-bottom: max(var(--spacing-lg), env(safe-area-inset-bottom));
+  padding-bottom: max(var(--spacing-xl), env(safe-area-inset-bottom), 60px);
   flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
   width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 768px) {
