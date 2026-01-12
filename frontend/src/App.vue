@@ -486,7 +486,7 @@ h1, h2, h3, h4, h5, h6 {
   .dropdown-menu {
     position: static;
     border: none;
-    margin-top: 0;
+    margin-top: var(--spacing-md);
   }
 
   .admin-dropdown.open .dropdown-menu {

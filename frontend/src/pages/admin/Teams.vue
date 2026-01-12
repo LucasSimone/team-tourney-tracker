@@ -339,9 +339,14 @@ const handleImageSelect = async (teamId: number, imageType: 'vertical' | 'horizo
   const file = target.files?.[0]
   if (!file) return
 
-  // Validate file type
+  // Validate file type - check both MIME type and file extension
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-  if (!allowedTypes.includes(file.type)) {
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp']
+  const fileName = file.name.toLowerCase()
+  const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext))
+  const hasValidMimeType = allowedTypes.includes(file.type)
+  
+  if (!hasValidMimeType && !hasValidExtension) {
     alert('Only JPEG, PNG, and WebP images are allowed')
     return
   }
@@ -364,11 +369,13 @@ const handleImageSelect = async (teamId: number, imageType: 'vertical' | 'horizo
       // Reload the image
       await loadTeamImage(teamId)
     } else {
-      alert('Failed to upload image')
+      const errorData = await res.json().catch(() => ({}))
+      const errorMsg = errorData.error || `Upload failed (${res.status})`
+      alert(`Failed to upload image: ${errorMsg}`)
     }
   } catch (e) {
     console.error('Failed to upload image', e)
-    alert('Error uploading image')
+    alert(`Error uploading image: ${e instanceof Error ? e.message : 'Unknown error'}`)
   }
 
   // Clear the input
