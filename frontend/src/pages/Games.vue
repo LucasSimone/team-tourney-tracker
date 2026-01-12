@@ -62,7 +62,7 @@
         </div>
 
         <div class="game-matchup">
-          <div class="team-section team-a">
+          <div class="team-section team-a" :style="getTeamBackgroundStyle(game.participant_a_id)">
             <span v-if="game.winner_id === game.participant_a_id" class="winner-badge">🏆 Winner</span>
             <router-link 
               v-if="game.match_type === 'team'"
@@ -83,7 +83,7 @@
             <span class="vs">vs</span>
           </div>
 
-          <div class="team-section team-b">
+          <div class="team-section team-b" :style="getTeamBackgroundStyle(game.participant_b_id)">
             <span v-if="game.winner_id === game.participant_b_id" class="winner-badge">🏆 Winner</span>
             <router-link 
               v-if="game.match_type === 'team'"
@@ -133,6 +133,56 @@ const selectedMatchType = ref('')
 const selectedTeamId = ref('')
 const selectedPlayerId = ref('')
 const selectedDate = ref('')
+const teamImages = ref<{ [key: number]: string }>({})
+
+onMounted(() => {
+  fetchTeams()
+  fetchSeasons()
+  fetchGames()
+  fetchPlayers()
+})
+
+const fetchTeams = async () => {
+  try {
+    const res = await fetch(`${api}/teams`)
+    if (res.ok) {
+      const data = await res.json()
+      teams.value = data || []
+      // Load horizontal images for each team
+      for (const team of teams.value) {
+        if (team.id) {
+          await loadTeamImage(team.id)
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch teams', e)
+  }
+}
+
+const loadTeamImage = async (teamId: number) => {
+  try {
+    const res = await fetch(`${api}/teams/${teamId}/image/horizontal`)
+    if (res.ok) {
+      const blob = await res.blob()
+      teamImages.value[teamId] = URL.createObjectURL(blob)
+    }
+  } catch (e) {
+    // 404 is expected for teams without images - don't log error
+  }
+}
+
+const getTeamBackgroundStyle = (teamId: number) => {
+  const imageUrl = teamImages.value[teamId]
+  if (!imageUrl) {
+    return {}
+  }
+  return {
+    backgroundImage: `linear-gradient(135deg, rgba(26, 26, 46, 0.85) 0%, rgba(22, 33, 62, 0.85) 100%), url(${imageUrl})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center'
+  }
+}
 
 const filteredGames = computed(() => {
   return games.value.filter(game => {
@@ -180,25 +230,6 @@ const clearFilters = () => {
   selectedTeamId.value = ''
   selectedPlayerId.value = ''
   selectedDate.value = ''
-}
-
-onMounted(() => {
-  fetchTeams()
-  fetchSeasons()
-  fetchGames()
-  fetchPlayers()
-})
-
-const fetchTeams = async () => {
-  try {
-    const res = await fetch(`${api}/teams`)
-    if (res.ok) {
-      const data = await res.json()
-      teams.value = data || []
-    }
-  } catch (e) {
-    console.error('Failed to fetch teams', e)
-  }
 }
 
 const fetchSeasons = async () => {
@@ -418,6 +449,10 @@ h1 {
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius);
+  min-height: 180px;
+  justify-content: center;
 }
 
 .team-section.team-a {
@@ -444,6 +479,7 @@ h1 {
   color: white;
   text-decoration: none;
   transition: color 0.2s ease;
+  text-shadow: 1px 1px 10px rgba(0, 0, 0, 1);
 }
 
 .team-name:hover {
@@ -453,7 +489,8 @@ h1 {
 .score {
   font-size: 24px;
   font-weight: 700;
-  color: var(--clr-primary-a50);
+  color: white;
+  text-shadow: 1px 1px 10px rgba(0, 0, 0, 1);
 }
 
 .vs-section {

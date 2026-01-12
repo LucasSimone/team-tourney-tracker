@@ -21,3 +21,17 @@ COPY --from=builder /app/dist ./dist
 EXPOSE 5173
 
 CMD ["serve", "-s", "dist", "-p", "5173"]
+
+# Development stage (uses Vite dev server)
+FROM node:20-alpine AS dev
+
+WORKDIR /app
+
+COPY package.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 5173
+
+CMD ["npm", "run", "dev"]

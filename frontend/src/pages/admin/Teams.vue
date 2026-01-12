@@ -29,6 +29,48 @@
         <div class="item-header">
           <h3>{{ team.name }}</h3>
         </div>
+        
+        <div class="team-image-section">
+          <div class="image-previews">
+            <div class="image-column">
+              <label class="image-type-label">Vertical (Detail Page)</label>
+              <div class="image-preview">
+                <img v-if="teamImages[team.id!]?.vertical" :src="teamImages[team.id!]?.vertical" :alt="team.name" class="team-image" />
+                <div v-else class="no-image">No image</div>
+              </div>
+              <div class="image-controls">
+                <input 
+                  type="file" 
+                  :ref="el => imageInputs[`${team.id!}_vertical`] = el" 
+                  @change="handleImageSelect(team.id!, 'vertical', $event)"
+                  accept="image/jpeg,image/png,image/webp"
+                  class="image-input"
+                />
+                <button @click="triggerImageInput(team.id!, 'vertical')" class="btn-secondary">Choose</button>
+                <button v-if="teamImages[team.id!]?.vertical" @click="removeTeamImage(team.id!, 'vertical')" class="btn-delete">Remove</button>
+              </div>
+            </div>
+            <div class="image-column">
+              <label class="image-type-label">Horizontal (Cards)</label>
+              <div class="image-preview">
+                <img v-if="teamImages[team.id!]?.horizontal" :src="teamImages[team.id!]?.horizontal" :alt="team.name" class="team-image" />
+                <div v-else class="no-image">No image</div>
+              </div>
+              <div class="image-controls">
+                <input 
+                  type="file" 
+                  :ref="el => imageInputs[`${team.id!}_horizontal`] = el" 
+                  @change="handleImageSelect(team.id!, 'horizontal', $event)"
+                  accept="image/jpeg,image/png,image/webp"
+                  class="image-input"
+                />
+                <button @click="triggerImageInput(team.id!, 'horizontal')" class="btn-secondary">Choose</button>
+                <button v-if="teamImages[team.id!]?.horizontal" @click="removeTeamImage(team.id!, 'horizontal')" class="btn-delete">Remove</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <div v-if="teamPlayers[team.id]" class="team-players">
           <p class="players-label">Players:</p>
           <div v-if="teamPlayers[team.id].length > 0" class="player-list">
@@ -100,6 +142,8 @@ const editingTeamPlayers = ref<Player[]>([])
 const selectedPlayerForNew = ref(0)
 const selectedPlayerForEdit = ref(0)
 const teamPlayers = ref<{ [key: number]: Player[] }>({})
+const teamImages = ref<{ [key: number]: { vertical?: string; horizontal?: string } }>({})
+const imageInputs = ref<{ [key: string]: HTMLInputElement | null }>({})
 
 onMounted(() => {
   fetchTeams()
@@ -114,9 +158,10 @@ const fetchTeams = async () => {
     if (res.ok) {
       const data = await res.json()
       teams.value = data || []
-      // Fetch players for each team
+      // Fetch players for each team and load images
       for (const team of teams.value) {
         await fetchTeamPlayers(team.id!)
+        await loadTeamImage(team.id!)
       }
     }
   } catch (e) {
@@ -247,6 +292,106 @@ const deleteTeam = async (id?: number) => {
     }
   } catch (e) {
     console.error('Failed to delete team', e)
+  }
+}
+
+const loadTeamImage = async (teamId: number) => {
+  try {
+    // Load vertical image
+    const verticalRes = await fetch(`${api}/teams/${teamId}/image/vertical`, {
+      headers: getAuthHeaders()
+    })
+    if (verticalRes.ok) {
+      const blob = await verticalRes.blob()
+      if (!teamImages.value[teamId]) {
+        teamImages.value[teamId] = {}
+      }
+      teamImages.value[teamId].vertical = URL.createObjectURL(blob)
+    }
+
+    // Load horizontal image
+    const horizontalRes = await fetch(`${api}/teams/${teamId}/image/horizontal`, {
+      headers: getAuthHeaders()
+    })
+    if (horizontalRes.ok) {
+      const blob = await horizontalRes.blob()
+      if (!teamImages.value[teamId]) {
+        teamImages.value[teamId] = {}
+      }
+      teamImages.value[teamId].horizontal = URL.createObjectURL(blob)
+    }
+    // 404 is expected for teams without images - don't log error
+  } catch (e) {
+    console.error('Failed to load team image', e)
+  }
+}
+
+const triggerImageInput = (teamId: number, imageType: 'vertical' | 'horizontal') => {
+  const key = `${teamId}_${imageType}`
+  const input = imageInputs.value[key]
+  if (input) {
+    input.click()
+  }
+}
+
+const handleImageSelect = async (teamId: number, imageType: 'vertical' | 'horizontal', event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  // Validate file type
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    alert('Only JPEG, PNG, and WebP images are allowed')
+    return
+  }
+
+  // Upload the image
+  try {
+    const formData = new FormData()
+    formData.append('image', file)
+
+    // Get auth headers but remove Content-Type - FormData sets it automatically
+    const headers = getAuthHeaders()
+    delete headers['Content-Type']
+
+    const res = await fetch(`${api}/teams/${teamId}/image/${imageType}`, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    })
+    if (res.ok) {
+      // Reload the image
+      await loadTeamImage(teamId)
+    } else {
+      alert('Failed to upload image')
+    }
+  } catch (e) {
+    console.error('Failed to upload image', e)
+    alert('Error uploading image')
+  }
+
+  // Clear the input
+  target.value = ''
+}
+
+const removeTeamImage = async (teamId: number, imageType: 'vertical' | 'horizontal') => {
+  if (!confirm(`Remove this team's ${imageType} image?`)) return
+
+  try {
+    const res = await fetch(`${api}/teams/${teamId}/image/${imageType}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    })
+    if (res.ok) {
+      if (teamImages.value[teamId]) {
+        delete teamImages.value[teamId][imageType]
+      }
+    } else {
+      alert('Failed to remove image')
+    }
+  } catch (e) {
+    console.error('Failed to remove image', e)
   }
 }
 </script>
@@ -557,6 +702,73 @@ input:focus, select:focus {
   flex: 1;
 }
 
+.team-image-section {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius);
+}
+
+.image-previews {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  width: 100%;
+}
+
+.image-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.image-type-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.image-preview {
+  width: 100%;
+  height: 120px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.team-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.no-image {
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.image-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.image-input {
+  display: none;
+}
+
+.image-controls button {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 13px;
+}
+
 @media (max-width: 600px) {
   .form-group {
     flex-direction: column;
@@ -572,6 +784,15 @@ input:focus, select:focus {
 
   .modal {
     width: 95%;
+  }
+
+  .team-image-section {
+    flex-direction: column;
+  }
+
+  .image-preview {
+    width: 100%;
+    height: 200px;
   }
 }
 </style>

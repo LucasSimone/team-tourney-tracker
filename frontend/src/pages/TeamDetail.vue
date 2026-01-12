@@ -1,7 +1,7 @@
 <template>
-  <div class="team-detail-page">
+  <div class="team-detail-page" :style="getBackgroundStyle()">
     <div v-if="loading" class="loading">Loading team details...</div>
-    <div v-else-if="team && matchups">
+    <div v-else-if="team && matchups" class="team-detail-content">
       <div class="header">
         <router-link to="/standings" class="back-button">← Back to Standings</router-link>
         <h1>{{ team.name }}</h1>
@@ -160,6 +160,7 @@ const seasons = ref<Season[]>([])
 const matches = ref<Match[]>([])
 const selectedSeasonId = ref(0)
 const loading = ref(true)
+const teamImageUrl = ref<string | null>(null)
 
 // Get the title update function from App.vue
 const updateDetailTitle = inject<(title: string) => void>('updateDetailTitle')
@@ -291,17 +292,45 @@ const isCurrentSeason = (seasonId?: number) => {
   return seasonId === currentSeasonId.value
 }
 
+const loadTeamImage = async (id: number) => {
+  try {
+    const res = await fetch(`${api}/teams/${id}/image/vertical`)
+    if (res.ok) {
+      const blob = await res.blob()
+      teamImageUrl.value = URL.createObjectURL(blob)
+    }
+    // 404 is expected for teams without images
+  } catch (e) {
+    // 404 is expected for teams without images - don't log error
+  }
+}
+
+const getBackgroundStyle = () => {
+  if (!teamImageUrl.value) {
+    return {}
+  }
+  return {
+    backgroundImage: `linear-gradient(rgba(26, 26, 46, 0.85), rgba(22, 33, 62, 0.85)), url('${teamImageUrl.value}')`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed',
+    minHeight: '100vh'
+  }
+}
+
 onMounted(() => {
   fetchTeam()
   fetchTeams()
   fetchSeasons()
   fetchMatches()
+  loadTeamImage(teamId.value)
 })
 
 watch(teamId, () => {
   loading.value = true
   fetchTeam()
   fetchMatches()
+  loadTeamImage(teamId.value)
 })
 
 const fetchTeam = async () => {
@@ -364,6 +393,18 @@ const fetchMatches = async () => {
 
 <style scoped>
 .team-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  min-height: 100vh;
+  margin: calc(var(--spacing-lg) * -1);
+  padding: var(--spacing-lg);
+}
+
+.team-detail-content {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xl);

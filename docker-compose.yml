@@ -6,8 +6,25 @@ services:
     volumes:
       - ./db:/db
     restart: unless-stopped
+    networks:
+      - dev-network
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: dev
     ports:
       - "5173:5173"
+    environment:
+      - VITE_BACKEND_URL=http://backend:8080
     restart: unless-stopped
+    networks:
+      - dev-network
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+
+networks:
+  dev-network:
+    driver: bridge
