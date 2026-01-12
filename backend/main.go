@@ -148,7 +148,8 @@ func initDB() {
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS teams (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL UNIQUE,
-		image_path TEXT
+		image_vertical TEXT,
+		image_horizontal TEXT
 	);
 	CREATE TABLE IF NOT EXISTS seasons (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -187,6 +188,53 @@ func initDB() {
 	`)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Migrate: Add image_vertical and image_horizontal columns if they don't exist
+	// This handles upgrading from the old single image_path schema
+	rows, err := db.Query("PRAGMA table_info(teams)")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	columnMap := make(map[string]bool)
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, coltype, dfltValue sql.NullString
+		rows.Scan(&cid, &name, &coltype, &notnull, &dfltValue, &pk)
+		if name.Valid {
+			columnMap[name.String] = true
+		}
+	}
+
+	// Add image_vertical column if it doesn't exist
+	if !columnMap["image_vertical"] {
+		_, err := db.Exec("ALTER TABLE teams ADD COLUMN image_vertical TEXT")
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("Added image_vertical column to teams table")
+	}
+
+	// Add image_horizontal column if it doesn't exist
+	if !columnMap["image_horizontal"] {
+		_, err := db.Exec("ALTER TABLE teams ADD COLUMN image_horizontal TEXT")
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("Added image_horizontal column to teams table")
+	}
+
+	// Migrate old image_path to image_vertical if image_path exists and image_vertical is empty
+	if columnMap["image_path"] && columnMap["image_vertical"] {
+		_, err := db.Exec(`UPDATE teams SET image_vertical = image_path 
+			WHERE image_vertical IS NULL AND image_path IS NOT NULL`)
+		if err != nil {
+			log.Printf("Warning: failed to migrate image_path to image_vertical: %v", err)
+		} else {
+			log.Println("Migrated image_path data to image_vertical column")
+		}
 	}
 }
 
@@ -373,11 +421,14 @@ func teamsHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		// Get and delete team image if it exists
-		var imagePath string
-		db.QueryRow("SELECT COALESCE(image_path, '') FROM teams WHERE id = ?", id).Scan(&imagePath)
-		if imagePath != "" {
-			os.Remove(imagePath)
+		// Get and delete team images if they exist
+		var imageVertical, imageHorizontal string
+		db.QueryRow("SELECT COALESCE(image_vertical, ''), COALESCE(image_horizontal, '') FROM teams WHERE id = ?", id).Scan(&imageVertical, &imageHorizontal)
+		if imageVertical != "" {
+			os.Remove(imageVertical)
+		}
+		if imageHorizontal != "" {
+			os.Remove(imageHorizontal)
 		}
 		// Delete team_players first (due to foreign key)
 		_, _ = db.Exec("DELETE FROM team_players WHERE team_id = ?", id)
@@ -390,7 +441,7 @@ func teamsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Handler for /teams/{id}/image
+// Handler for /teams/{id}/image/{type}
 func handleTeamImage(w http.ResponseWriter, r *http.Request) {
 	setCORSHeaders(w, r)
 
@@ -399,25 +450,37 @@ func handleTeamImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse team ID from path like /teams/1/image
+	// Parse team ID and image type from path like /teams/1/image/vertical or /teams/1/image/horizontal
 	parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
-	if len(parts) < 3 {
+	if len(parts) < 4 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	teamIDStr := parts[2]
+	imageType := parts[4]
+
+	// Validate image type
+	if imageType != "vertical" && imageType != "horizontal" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid image type. Must be 'vertical' or 'horizontal'"})
+		return
+	}
+
 	teamID, err := strconv.ParseInt(teamIDStr, 10, 64)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
+	// Get the column name based on type
+	columnName := "image_" + imageType
+
 	switch r.Method {
 	case "GET":
 		// Get image for team
 		var imagePath string
-		err := db.QueryRow("SELECT COALESCE(image_path, '') FROM teams WHERE id = ?", teamID).Scan(&imagePath)
+		err := db.QueryRow(fmt.Sprintf("SELECT COALESCE(\"%s\", '') FROM teams WHERE id = ?", columnName), teamID).Scan(&imagePath)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -490,13 +553,13 @@ func handleTeamImage(w http.ResponseWriter, r *http.Request) {
 			ext = ".webp"
 		}
 
-		// Generate filename
-		filename := fmt.Sprintf("team_%d%s", teamID, ext)
+		// Generate filename with image type (e.g., team_1_vertical.jpg)
+		filename := fmt.Sprintf("team_%d_%s%s", teamID, imageType, ext)
 		filepath := filepath.Join(uploadsDir, filename)
 
 		// Delete old image if it exists
 		var oldImagePath string
-		db.QueryRow("SELECT COALESCE(image_path, '') FROM teams WHERE id = ?", teamID).Scan(&oldImagePath)
+		db.QueryRow(fmt.Sprintf("SELECT COALESCE(\"%s\", '') FROM teams WHERE id = ?", columnName), teamID).Scan(&oldImagePath)
 		if oldImagePath != "" && oldImagePath != filepath {
 			os.Remove(oldImagePath)
 		}
@@ -518,7 +581,7 @@ func handleTeamImage(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Update database with image path
-		_, err = db.Exec("UPDATE teams SET image_path = ? WHERE id = ?", filepath, teamID)
+		_, err = db.Exec(fmt.Sprintf("UPDATE teams SET \"%s\" = ? WHERE id = ?", columnName), filepath, teamID)
 		if err != nil {
 			os.Remove(filepath)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -536,7 +599,7 @@ func handleTeamImage(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var imagePath string
-		err := db.QueryRow("SELECT COALESCE(image_path, '') FROM teams WHERE id = ?", teamID).Scan(&imagePath)
+		err := db.QueryRow(fmt.Sprintf("SELECT COALESCE(\"%s\", '') FROM teams WHERE id = ?", columnName), teamID).Scan(&imagePath)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -544,7 +607,7 @@ func handleTeamImage(w http.ResponseWriter, r *http.Request) {
 
 		if imagePath != "" {
 			os.Remove(imagePath)
-			_, err = db.Exec("UPDATE teams SET image_path = NULL WHERE id = ?", teamID)
+			_, err = db.Exec(fmt.Sprintf("UPDATE teams SET \"%s\" = NULL WHERE id = ?", columnName), teamID)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return

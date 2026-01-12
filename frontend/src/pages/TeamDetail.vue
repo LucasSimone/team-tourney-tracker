@@ -294,14 +294,14 @@ const isCurrentSeason = (seasonId?: number) => {
 
 const loadTeamImage = async (id: number) => {
   try {
-    const res = await fetch(`${api}/teams/${id}/image`)
+    const res = await fetch(`${api}/teams/${id}/image/vertical`)
     if (res.ok) {
       const blob = await res.blob()
       teamImageUrl.value = URL.createObjectURL(blob)
     }
     // 404 is expected for teams without images
   } catch (e) {
-    console.error('Failed to load team image', e)
+    // 404 is expected for teams without images - don't log error
   }
 }
 

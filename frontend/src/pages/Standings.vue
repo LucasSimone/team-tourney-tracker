@@ -283,13 +283,13 @@ const getSeasonYear = (id?: number) => seasons.value.find(s => s.id === id)?.yea
 
 const loadTeamImage = async (teamId: number) => {
   try {
-    const res = await fetch(`${api}/teams/${teamId}/image`)
+    const res = await fetch(`${api}/teams/${teamId}/image/horizontal`)
     if (res.ok) {
       const blob = await res.blob()
       teamImages.value[teamId] = URL.createObjectURL(blob)
     }
   } catch (e) {
-    console.error(`Failed to load team image for team ${teamId}`, e)
+    // 404 is expected for teams without images - don't log error
   }
 }
 
