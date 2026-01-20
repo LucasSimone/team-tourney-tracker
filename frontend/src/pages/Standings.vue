@@ -256,6 +256,7 @@ const fetchPlayerStats = async () => {
           gamesPlayed: stat.games_played,
           winPercentage: stat.win_percentage
         }))
+        .sort((a, b) => b.winPercentage - a.winPercentage) // Sort by win percentage (highest to lowest)
     }
   } catch (e) {
     console.error('Failed to fetch player stats', e)
